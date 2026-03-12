@@ -1,1 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout A/B</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .done { background-color: #f3f4f6; opacity: 0.6; }
+        .active-tab { border-bottom: 4px solid #3b82f6; color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-24">
 
+    <nav class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="flex justify-around text-center font-bold">
+            <button id="tabA" onclick="switchMenu('A')" class="flex-1 py-4 active-tab">Aメニュー</button>
+            <button id="tabB" onclick="switchMenu('B')" class="flex-1 py-4 text-gray-400">Bメニュー</button>
+        </div>
+    </nav>
+
+    <main class="p-4 space-y-4" id="menu-content">
+        </main>
+
+    <footer class="fixed bottom-0 left-0 w-full p-4 bg-white border-t flex gap-4 items-center">
+        <button onclick="saveSession()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition">完了保存</button>
+        <button onclick="resetData()" class="text-xs text-gray-400">リセット</button>
+    </footer>
+
+    <script>
+        const menuA = [
+            { name: "チェストプレス", type: "strength", goal: "10回 × 3セット" },
+            { name: "ラットプルダウン", type: "strength", goal: "10回 × 3セット" },
+            { name: "アブドミナルクランチ", type: "strength", goal: "10回 × 3セット" },
+            { name: "トレッドミル：インターバル", type: "timer", detail: "1分UP → (1分RUN/2分WALK)x4 → 2分DOWN", duration: 900 },
+            { name: "プランク", type: "plank", goal: "45秒 × 2セット", duration: 45 }
+        ];
+
+        const menuB = [
+            { name: "レッグプレス", type: "strength", goal: "10回 × 3セット" },
+            { name: "レッグエクステンション", type: "strength", goal: "10回 × 3セット" },
+            { name: "トレッドミル：ウォーキング", type: "timer", detail: "20分 一定ペース", duration: 1200 },
+            { name: "プランク", type: "plank", goal: "45秒 × 2セット", duration: 45 }
+        ];
+
+        let currentMenu = 'A';
+
+        function switchMenu(type) {
+            currentMenu = type;
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-4 active-tab' : 'flex-1 py-4 text-gray-400';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 py-4 active-tab' : 'flex-1 py-4 text-gray-400';
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('menu-content');
+            const data = currentMenu === 'A' ? menuA : menuB;
+            
+            container.innerHTML = data.map((item, idx) => `
+                <section class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h2 class="font-bold text-gray-800 text-lg">${item.name}</h2>
+                            <p class="text-blue-500 text-sm font-semibold">${item.goal || item.detail}</p>
+                        </div>
+                        <input type="checkbox" class="w-7 h-7 rounded-full border-gray-300" onchange="markDone(${idx}, this)">
+                    </div>
+                    
+                    ${item.type === 'strength' ? `
+                        <div class="flex gap-2 mt-2">
+                            <input type="number" placeholder="kg" class="w-20 p-2 bg-gray-50 border rounded-lg text-center" id="weight-${idx}">
+                            <span class="self-center text-gray-400">前回: ${getPrevWeight(item.name)}kg</span>
+                        </div>
+                    ` : ''}
+
+                    ${item.type === 'timer' || item.type === 'plank' ? `
+                        <div class="flex items-center gap-4 mt-3">
+                            <button onclick="startTimer(${item.duration}, 'timer-display-${idx}')" class="bg-slate-800 text-white text-xs px-4 py-2 rounded-lg">START</button>
+                            <span class="font-mono text-xl text-slate-700" id="timer-display-${idx}">${Math.floor(item.duration/60)}:00</span>
+                        </div>
+                    ` : ''}
+                </section>
+            `).join('');
+        }
+
+        // タイマー制御
+        function startTimer(seconds, displayId) {
+            let timeLeft = seconds;
+            const display = document.getElementById(displayId);
+            const interval = setInterval(() => {
+                const m = Math.floor(timeLeft / 60);
+                const s = timeLeft % 60;
+                display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    new Audio('https://actions.google.com/google_suoneries/alarm_clock.ogg').play().catch(() => alert("終了時間です！"));
+                }
+                timeLeft--;
+            }, 1000);
+        }
+
+        function markDone(idx, cb) {
+            document.getElementById(`item-${idx}`).classList.toggle('done', cb.checked);
+        }
+
+        function getPrevWeight(name) {
+            return localStorage.getItem(`prev-${name}`) || '--';
+        }
+
+        function saveSession() {
+            // 重量記録を保存
+            const data = currentMenu === 'A' ? menuA : menuB;
+            data.forEach((item, idx) => {
+                if(item.type === 'strength') {
+                    const val = document.getElementById(`weight-${idx}`).value;
+                    if(val) localStorage.setItem(`prev-${item.name}`, val);
+                }
+            });
+            alert("お疲れ様でした！記録しました。");
+            location.reload();
+        }
+
+        function resetData() {
+            if(confirm("全記録をリセットしますか？")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
