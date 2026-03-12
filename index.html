@@ -2,29 +2,40 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workout A/B</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Alt-Fit</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Alt-Fit">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2936/2936886.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        body { -webkit-touch-callout: none; -webkit-user-select: none; }
         .done { background-color: #f3f4f6; opacity: 0.6; }
         .active-tab { border-bottom: 4px solid #3b82f6; color: #3b82f6; }
+        /* iPhoneのノッチ（上部）対策 */
+        header { padding-top: env(safe-area-inset-top); }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen pb-24">
+<body class="bg-slate-50 min-h-screen pb-24 text-slate-800">
 
-    <nav class="bg-white shadow-sm sticky top-0 z-10">
+    <nav class="bg-white shadow-sm sticky top-0 z-10 pt-8">
         <div class="flex justify-around text-center font-bold">
-            <button id="tabA" onclick="switchMenu('A')" class="flex-1 py-4 active-tab">Aメニュー</button>
-            <button id="tabB" onclick="switchMenu('B')" class="flex-1 py-4 text-gray-400">Bメニュー</button>
+            <button id="tabA" onclick="switchMenu('A')" class="flex-1 py-4 active-tab transition-all">Aメニュー</button>
+            <button id="tabB" onclick="switchMenu('B')" class="flex-1 py-4 text-gray-400 transition-all">Bメニュー</button>
         </div>
     </nav>
 
     <main class="p-4 space-y-4" id="menu-content">
         </main>
 
-    <footer class="fixed bottom-0 left-0 w-full p-4 bg-white border-t flex gap-4 items-center">
-        <button onclick="saveSession()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition">完了保存</button>
-        <button onclick="resetData()" class="text-xs text-gray-400">リセット</button>
+    <footer class="fixed bottom-0 left-0 w-full p-4 bg-white/80 backdrop-blur-md border-t flex gap-4 items-center pb-8">
+        <button onclick="saveSession()" class="flex-1 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition">
+            トレーニング完了保存
+        </button>
+        <button onclick="resetData()" class="text-[10px] text-gray-300">RESET</button>
     </footer>
 
     <script>
@@ -57,33 +68,36 @@
             const data = currentMenu === 'A' ? menuA : menuB;
             
             container.innerHTML = data.map((item, idx) => `
-                <section class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <h2 class="font-bold text-gray-800 text-lg">${item.name}</h2>
-                            <p class="text-blue-500 text-sm font-semibold">${item.goal || item.detail}</p>
+                <section class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 transition-all" id="item-${idx}">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h2 class="font-extrabold text-slate-800 text-lg">${item.name}</h2>
+                            <p class="text-blue-500 text-xs font-bold mt-1 uppercase tracking-wider">${item.goal || item.detail}</p>
                         </div>
-                        <input type="checkbox" class="w-7 h-7 rounded-full border-gray-300" onchange="markDone(${idx}, this)">
+                        <input type="checkbox" class="w-8 h-8 rounded-full border-gray-200 text-blue-600 focus:ring-blue-500" onchange="markDone(${idx}, this)">
                     </div>
                     
                     ${item.type === 'strength' ? `
-                        <div class="flex gap-2 mt-2">
-                            <input type="number" placeholder="kg" class="w-20 p-2 bg-gray-50 border rounded-lg text-center" id="weight-${idx}">
-                            <span class="self-center text-gray-400">前回: ${getPrevWeight(item.name)}kg</span>
+                        <div class="flex items-center gap-3 mt-4">
+                            <input type="number" inputmode="decimal" placeholder="0" class="w-24 p-3 bg-slate-50 border-none rounded-2xl text-center text-xl font-bold focus:ring-2 focus:ring-blue-500" id="weight-${idx}">
+                            <span class="text-lg font-bold text-slate-400 px-1">kg</span>
+                            <div class="ml-auto text-right">
+                                <span class="block text-[10px] text-gray-400 uppercase tracking-tighter">Previous</span>
+                                <span class="text-sm font-mono font-bold text-slate-500">${getPrevWeight(item.name)} kg</span>
+                            </div>
                         </div>
                     ` : ''}
 
                     ${item.type === 'timer' || item.type === 'plank' ? `
-                        <div class="flex items-center gap-4 mt-3">
-                            <button onclick="startTimer(${item.duration}, 'timer-display-${idx}')" class="bg-slate-800 text-white text-xs px-4 py-2 rounded-lg">START</button>
-                            <span class="font-mono text-xl text-slate-700" id="timer-display-${idx}">${Math.floor(item.duration/60)}:00</span>
+                        <div class="flex items-center justify-between mt-4 bg-slate-50 p-3 rounded-2xl">
+                            <span class="font-mono text-2xl font-bold text-slate-700" id="timer-display-${idx}">${Math.floor(item.duration/60)}:00</span>
+                            <button onclick="startTimer(${item.duration}, 'timer-display-${idx}')" class="bg-slate-800 text-white font-bold px-6 py-2 rounded-xl active:bg-blue-600 transition">START</button>
                         </div>
                     ` : ''}
                 </section>
             `).join('');
         }
 
-        // タイマー制御
         function startTimer(seconds, displayId) {
             let timeLeft = seconds;
             const display = document.getElementById(displayId);
@@ -93,7 +107,8 @@
                 display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 if (timeLeft <= 0) {
                     clearInterval(interval);
-                    new Audio('https://actions.google.com/google_suoneries/alarm_clock.ogg').play().catch(() => alert("終了時間です！"));
+                    if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
+                    alert("Time is up!");
                 }
                 timeLeft--;
             }, 1000);
@@ -108,7 +123,6 @@
         }
 
         function saveSession() {
-            // 重量記録を保存
             const data = currentMenu === 'A' ? menuA : menuB;
             data.forEach((item, idx) => {
                 if(item.type === 'strength') {
@@ -116,12 +130,12 @@
                     if(val) localStorage.setItem(`prev-${item.name}`, val);
                 }
             });
-            alert("お疲れ様でした！記録しました。");
+            alert("記録完了！お疲れ様でした。");
             location.reload();
         }
 
         function resetData() {
-            if(confirm("全記録をリセットしますか？")) {
+            if(confirm("全ての重量記録を消去しますか？")) {
                 localStorage.clear();
                 location.reload();
             }
