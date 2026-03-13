@@ -13,24 +13,25 @@
             -webkit-user-select: none; 
             background: radial-gradient(circle at top, #1e293b, #0f172a);
         }
-        .done { opacity: 0.3; filter: grayscale(1); }
+        .done { opacity: 0.2; filter: grayscale(1); }
         .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
-        .input-focus:focus { border-color: #3b82f6; background-color: #1e293b; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body class="min-h-screen pb-32 text-slate-200">
 
     <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 pt-10 pb-2 border-b border-slate-700">
         <div class="flex justify-around text-center font-bold">
-            <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-sm">Menu A</button>
-            <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-sm">Menu B</button>
+            <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-xs">Menu A</button>
+            <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
         </div>
     </nav>
 
     <main class="p-4 space-y-4" id="menu-content"></main>
 
     <footer class="fixed bottom-0 left-0 w-full p-6 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700 shadow-2xl">
-        <button id="save-btn" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.4)] active:scale-95 transition-all uppercase tracking-widest">
+        <button id="save-btn" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.4)] active:scale-95 transition-all uppercase tracking-widest text-sm">
             Save to Cloud
         </button>
     </footer>
@@ -54,18 +55,18 @@
         const USER_ID = "my_personal_log";
 
         const menuA = [
-            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
-            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
-            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
-            { name: "TREADMILL INTERVAL", settings: "15min (1m RUN / 2m WALK)", type: "timer", duration: 900 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+            { id: "cp", name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
+            { id: "lp", name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
+            { id: "ac", name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
+            { id: "ti", name: "TREADMILL INTERVAL", settings: "15min (1m RUN / 2m WALK)", type: "timer", duration: 900 },
+            { id: "pk", name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
 
         const menuB = [
-            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
-            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
-            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+            { id: "rp", name: "LEG PRESS", settings: "Seat:2", type: "strength" },
+            { id: "le", name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
+            { id: "tw", name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
+            { id: "pkb", name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
 
         let currentMenu = 'A';
@@ -84,40 +85,44 @@
             const data = currentMenu === 'A' ? menuA : menuB;
             
             container.innerHTML = data.map((item, idx) => `
-                <section class="bg-slate-800/50 p-5 rounded-[2rem] border border-slate-700 shadow-lg" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <h2 class="font-black text-white text-lg tracking-tight leading-tight">${item.name}</h2>
+                <section class="bg-slate-800/40 p-5 rounded-[1.5rem] border border-slate-700 shadow-lg" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="max-w-[80%]">
+                            <h2 class="font-black text-white text-base tracking-tight leading-tight uppercase">${item.name}</h2>
                             <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1">⚙️ ${item.settings}</p>
                         </div>
-                        <input type="checkbox" class="w-8 h-8 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500 focus:ring-0" onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked)">
+                        <input type="checkbox" class="w-7 h-7 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500 focus:ring-0" onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked)">
                     </div>
                     
                     ${item.type === 'strength' ? `
-                        <div class="space-y-3">
-                            <div class="flex items-center bg-slate-900/50 p-3 rounded-2xl border border-slate-700/50">
-                                <span class="text-[9px] text-slate-500 font-bold uppercase w-12 text-center">Weight</span>
+                        <div class="space-y-4">
+                            <div class="flex items-center bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                                <span class="text-[9px] text-slate-500 font-black uppercase w-10 text-center">KG</span>
                                 <input type="number" inputmode="decimal" placeholder="0" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center focus:outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}">
-                                <span class="text-xs font-bold text-slate-500 w-8">kg</span>
+                                <span class="w-10"></span>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[9px] text-slate-500 font-bold uppercase w-12 text-center">Reps</span>
-                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}">
-                                <span class="text-slate-600">-</span>
-                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}">
-                                <span class="text-slate-600">-</span>
-                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}">
+                            <div class="flex items-center gap-1">
+                                <span class="text-[9px] text-slate-500 font-black uppercase w-10 text-center">REPS</span>
+                                <div class="flex-1 flex items-center justify-between gap-2">
+                                    <input type="number" inputmode="numeric" placeholder="0" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 focus:border-blue-500 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}">
+                                    <span class="text-slate-600 font-bold">-</span>
+                                    <input type="number" inputmode="numeric" placeholder="0" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 focus:border-blue-500 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}">
+                                    <span class="text-slate-600 font-bold">-</span>
+                                    <input type="number" inputmode="numeric" placeholder="0" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 focus:border-blue-500 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}">
+                                </div>
                             </div>
-                            <div class="text-[9px] text-slate-600 font-bold px-1 uppercase tracking-tighter text-center pt-1 border-t border-slate-700/30">
+                            <div class="text-[9px] text-slate-500 font-bold px-1 uppercase tracking-tighter text-center pt-2 border-t border-slate-700/30">
                                 Prev: ${cloudData[item.name]?.weight || '--'}kg (${cloudData[item.name]?.r1 || '-'}-${cloudData[item.name]?.r2 || '-'}-${cloudData[item.name]?.r3 || '-'})
                             </div>
                         </div>
                     ` : `
-                        <div class="flex items-center justify-between bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 mt-2">
-                            <span class="font-mono text-3xl font-black text-blue-400" id="timer-display-${idx}">${Math.floor(item.duration/60)}:00</span>
+                        <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 mt-2">
+                            <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">
+                                ${item.duration === 45 ? '00:45' : Math.floor(item.duration/60) + ':00'}
+                            </span>
                             <div class="flex gap-2">
-                                <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-[10px] font-black px-4 py-3 rounded-xl active:bg-blue-400 transition uppercase tracking-widest">Start</button>
-                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-3 py-3 rounded-xl uppercase tracking-widest">Reset</button>
+                                <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-[10px] font-black px-4 py-3 rounded-lg active:bg-blue-400 transition uppercase tracking-widest">Start</button>
+                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-3 py-3 rounded-lg uppercase tracking-widest">Reset</button>
                             </div>
                         </div>
                     `}
@@ -142,7 +147,7 @@
                     delete activeTimers[idx];
                     btn.disabled = false;
                     btn.classList.remove('opacity-30');
-                    alert("Time Up!");
+                    alert("Finish!");
                 }
             }, 1000);
         };
@@ -152,13 +157,14 @@
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
             const m = Math.floor(seconds / 60);
-            display.innerText = `${String(m).padStart(2, '0')}:00`;
+            const s = seconds % 60;
+            display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
             btn.disabled = false; btn.classList.remove('opacity-30');
         };
 
         async function saveSession() {
             const btn = document.getElementById('save-btn');
-            btn.innerText = "Saving...";
+            btn.innerText = "UPDATING...";
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             
@@ -174,7 +180,7 @@
             });
 
             await setDoc(doc(db, "users", USER_ID), updates);
-            alert("Saved to Cloud!");
+            alert("Cloud Synced!");
             location.reload();
         }
 
