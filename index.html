@@ -49,17 +49,31 @@
         const db = getFirestore(app);
         const USER_ID = "my_personal_log";
 
+        // --- 音声エンジンの強化 ---
         let audioCtx = null;
-        window.initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+        window.initAudio = () => { 
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                // 許可を得た瞬間に「ポッ」とテスト音を鳴らす（イヤホン確認用）
+                playBeep(440, 0.1); 
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        };
+
         const playBeep = (freq = 880, dur = 0.2) => {
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
+            
+            // 矩形波(square)にすることでイヤホンでも突き抜けて聞こえるようになります
+            osc.type = "square"; 
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
             gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + dur);
+            
             osc.start(); osc.stop(audioCtx.currentTime + dur);
         };
 
@@ -127,8 +141,8 @@
                                 <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">${item.type === 'plank' ? '00:45' : (Math.floor(item.duration/60) + ':00')}</span>
                             </div>
                             <div class="flex gap-2">
-                                <button id="timer-btn-${idx}" onclick="window.${item.type === 'interval' ? 'startInterval' : 'startTimer'}(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest active:bg-blue-400">Start</button>
-                                <button onclick="window.resetTimer(${item.duration}, ${idx}, '${item.type}')" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest">Reset</button>
+                                <button id="timer-btn-${idx}" onclick="window.${item.type === 'interval' ? 'startInterval' : 'startTimer'}(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest active:bg-blue-400 shadow-md">Start</button>
+                                <button onclick="window.resetTimer(${item.duration}, ${idx}, '${item.type}')" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest active:bg-slate-600">Reset</button>
                             </div>
                         </div>
                     `}
@@ -150,13 +164,11 @@
                 elapsed++;
                 let remaining = totalSeconds - elapsed;
                 let phase = "";
-                let phaseTime = 0;
 
                 if (elapsed <= 60) {
                     phase = "Warmup";
                     if (elapsed === 60) playBeep(1000, 0.4);
                 } else {
-                    // 1分(60s)RUN + 2分(120s)WALK = 180sサイクル
                     let cycleElapsed = (elapsed - 60) % 180; 
                     if (cycleElapsed <= 60 && cycleElapsed !== 0) {
                         phase = "🏃 RUN";
@@ -168,7 +180,6 @@
                 }
 
                 status.innerText = phase;
-                status.classList.add('text-blue-400');
                 const m = Math.floor(remaining / 60); const s = remaining % 60;
                 display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
@@ -194,7 +205,7 @@
                 if (timeLeft <= 0) {
                     clearInterval(activeTimers[idx]); delete activeTimers[idx];
                     btn.disabled = false; btn.classList.remove('opacity-30');
-                    playBeep(880, 0.5);
+                    playBeep(880, 0.6);
                 }
             }, 1000);
         };
