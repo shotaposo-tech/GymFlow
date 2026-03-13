@@ -4,12 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GymFlow Pro</title>
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="GymFlow">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2936/2936886.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
@@ -17,24 +13,24 @@
             -webkit-user-select: none; 
             background: radial-gradient(circle at top, #1e293b, #0f172a);
         }
-        .done { opacity: 0.4; filter: grayscale(1); }
+        .done { opacity: 0.3; filter: grayscale(1); }
         .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
-        .card-glow { box-shadow: 0 0 15px rgba(59, 130, 246, 0.1); }
+        .input-focus:focus { border-color: #3b82f6; background-color: #1e293b; }
     </style>
 </head>
 <body class="min-h-screen pb-32 text-slate-200">
 
     <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 pt-10 pb-2 border-b border-slate-700">
         <div class="flex justify-around text-center font-bold">
-            <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest">Menu A</button>
-            <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest">Menu B</button>
+            <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-sm">Menu A</button>
+            <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-sm">Menu B</button>
         </div>
     </nav>
 
     <main class="p-4 space-y-4" id="menu-content"></main>
 
-    <footer class="fixed bottom-0 left-0 w-full p-6 bg-slate-900/90 backdrop-blur-xl border-t border-slate-700 flex flex-col gap-2 shadow-2xl">
-        <button id="save-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.4)] active:scale-95 transition-all uppercase">
+    <footer class="fixed bottom-0 left-0 w-full p-6 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700 shadow-2xl">
+        <button id="save-btn" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.4)] active:scale-95 transition-all uppercase tracking-widest">
             Save to Cloud
         </button>
     </footer>
@@ -58,18 +54,18 @@
         const USER_ID = "my_personal_log";
 
         const menuA = [
-            { name: "チェストプレス", type: "strength", goal: "10-10-10" },
-            { name: "ラットプルダウン", type: "strength", goal: "10-10-10" },
-            { name: "アブドミナルクランチ", type: "strength", goal: "10-10-10" },
-            { name: "インターバル走", type: "timer", detail: "15分 (1分走/2分歩)", duration: 900 },
-            { name: "プランク", type: "plank", detail: "45秒 × 2", duration: 45 }
+            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
+            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
+            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
+            { name: "TREADMILL INTERVAL", settings: "15min (1m RUN / 2m WALK)", type: "timer", duration: 900 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
 
         const menuB = [
-            { name: "レッグプレス", type: "strength", goal: "10-10-10" },
-            { name: "レッグエクステンション", type: "strength", goal: "10-10-10" },
-            { name: "ウォーキング", type: "timer", detail: "20分 一定", duration: 1200 },
-            { name: "プランク", type: "plank", detail: "45秒 × 2", duration: 45 }
+            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
+            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
+            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
 
         let currentMenu = 'A';
@@ -88,33 +84,40 @@
             const data = currentMenu === 'A' ? menuA : menuB;
             
             container.innerHTML = data.map((item, idx) => `
-                <section class="bg-slate-800/50 p-5 rounded-[2rem] border border-slate-700 card-glow transition-all" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-4">
+                <section class="bg-slate-800/50 p-5 rounded-[2rem] border border-slate-700 shadow-lg" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-3">
                         <div>
-                            <h2 class="font-black text-white text-xl tracking-tight">${item.name}</h2>
-                            <p class="text-blue-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">${item.detail || 'Target: ' + item.goal}</p>
+                            <h2 class="font-black text-white text-lg tracking-tight leading-tight">${item.name}</h2>
+                            <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1">⚙️ ${item.settings}</p>
                         </div>
                         <input type="checkbox" class="w-8 h-8 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500 focus:ring-0" onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked)">
                     </div>
                     
                     ${item.type === 'strength' ? `
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/50">
-                                <span class="block text-[9px] text-slate-500 font-bold uppercase mb-1">Weight (kg)</span>
-                                <input type="number" inputmode="decimal" placeholder="0" class="w-full bg-transparent text-2xl font-black text-blue-400 focus:outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}">
+                        <div class="space-y-3">
+                            <div class="flex items-center bg-slate-900/50 p-3 rounded-2xl border border-slate-700/50">
+                                <span class="text-[9px] text-slate-500 font-bold uppercase w-12 text-center">Weight</span>
+                                <input type="number" inputmode="decimal" placeholder="0" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center focus:outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}">
+                                <span class="text-xs font-bold text-slate-500 w-8">kg</span>
                             </div>
-                            <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/50">
-                                <span class="block text-[9px] text-slate-500 font-bold uppercase mb-1">Reps (e.g. 10-10-9)</span>
-                                <input type="text" inputmode="text" placeholder="-- -- --" class="w-full bg-transparent text-xl font-black text-white focus:outline-none" id="reps-${idx}" value="${cloudData[item.name]?.reps || ''}">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] text-slate-500 font-bold uppercase w-12 text-center">Reps</span>
+                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}">
+                                <span class="text-slate-600">-</span>
+                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}">
+                                <span class="text-slate-600">-</span>
+                                <input type="number" inputmode="numeric" placeholder="0" class="flex-1 bg-slate-900/50 p-2 rounded-xl text-lg font-bold text-white text-center focus:outline-none border border-slate-700/50" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}">
+                            </div>
+                            <div class="text-[9px] text-slate-600 font-bold px-1 uppercase tracking-tighter text-center pt-1 border-t border-slate-700/30">
+                                Prev: ${cloudData[item.name]?.weight || '--'}kg (${cloudData[item.name]?.r1 || '-'}-${cloudData[item.name]?.r2 || '-'}-${cloudData[item.name]?.r3 || '-'})
                             </div>
                         </div>
-                        <div class="mt-2 text-[10px] text-slate-500 font-bold px-1">PREV: ${cloudData[item.name]?.weight || '--'}kg / ${cloudData[item.name]?.reps || '--'}</div>
                     ` : `
-                        <div class="flex items-center justify-between bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+                        <div class="flex items-center justify-between bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 mt-2">
                             <span class="font-mono text-3xl font-black text-blue-400" id="timer-display-${idx}">${Math.floor(item.duration/60)}:00</span>
                             <div class="flex gap-2">
-                                <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-xs font-black px-4 py-3 rounded-xl active:bg-blue-400 transition">START</button>
-                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-3 py-3 rounded-xl">RESET</button>
+                                <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-[10px] font-black px-4 py-3 rounded-xl active:bg-blue-400 transition uppercase tracking-widest">Start</button>
+                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-3 py-3 rounded-xl uppercase tracking-widest">Reset</button>
                             </div>
                         </div>
                     `}
@@ -123,60 +126,55 @@
         }
 
         window.startTimer = (seconds, idx) => {
-            if (activeTimers[idx]) return; // すでに動いていたら無視
-
+            if (activeTimers[idx]) return;
             let timeLeft = seconds;
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
-            
             btn.disabled = true;
             btn.classList.add('opacity-30');
-
             activeTimers[idx] = setInterval(() => {
                 timeLeft--;
                 const m = Math.floor(timeLeft / 60);
                 const s = timeLeft % 60;
                 display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                
                 if (timeLeft <= 0) {
                     clearInterval(activeTimers[idx]);
                     delete activeTimers[idx];
                     btn.disabled = false;
                     btn.classList.remove('opacity-30');
-                    alert("Finish!");
+                    alert("Time Up!");
                 }
             }, 1000);
         };
 
         window.resetTimer = (seconds, idx) => {
-            if (activeTimers[idx]) {
-                clearInterval(activeTimers[idx]);
-                delete activeTimers[idx];
-            }
+            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
             const m = Math.floor(seconds / 60);
             display.innerText = `${String(m).padStart(2, '0')}:00`;
-            btn.disabled = false;
-            btn.classList.remove('opacity-30');
+            btn.disabled = false; btn.classList.remove('opacity-30');
         };
 
         async function saveSession() {
             const btn = document.getElementById('save-btn');
-            btn.innerText = "UPDATING...";
+            btn.innerText = "Saving...";
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             
             data.forEach((item, idx) => {
                 if(item.type === 'strength') {
-                    const w = document.getElementById(`weight-${idx}`).value;
-                    const r = document.getElementById(`reps-${idx}`).value;
-                    updates[item.name] = { weight: w, reps: r };
+                    updates[item.name] = {
+                        weight: document.getElementById(`weight-${idx}`).value,
+                        r1: document.getElementById(`r1-${idx}`).value,
+                        r2: document.getElementById(`r2-${idx}`).value,
+                        r3: document.getElementById(`r3-${idx}`).value
+                    };
                 }
             });
 
             await setDoc(doc(db, "users", USER_ID), updates);
-            alert("Cloud Synced!");
+            alert("Saved to Cloud!");
             location.reload();
         }
 
