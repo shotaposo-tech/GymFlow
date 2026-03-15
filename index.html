@@ -13,9 +13,7 @@
         .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
         .record-glow { animation: glow-pulse 2s infinite; border-color: #3b82f6; }
         @keyframes glow-pulse { 0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); } 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } }
-        .badge-anim { animation: badge-pop 0.5s ease-out; }
-        @keyframes badge-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        #login-overlay { background: rgba(15, 23, 42, 0.98); backdrop-blur: 15px; display: flex; } /* 初期状態は表示 */
+        #login-overlay { background: rgba(15, 23, 42, 0.98); backdrop-blur: 15px; display: none; }
     </style>
 </head>
 <body class="min-h-screen pb-10 text-slate-200" onclick="initAudio()">
@@ -62,44 +60,48 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
 
         let currentUser = null;
         let cloudData = {};
-        let activeTimers = {};
         let currentMenu = 'A';
 
-        // 1. 永続性の設定とリダイレクト結果の処理
+        // 1. 永続性設定
         setPersistence(auth, browserLocalPersistence);
-        
-        getRedirectResult(auth).catch((error) => {
-            if(error.code !== 'auth/redirect-cancelled-by-user') {
-                alert("ログインに失敗しました: " + error.message);
-            }
-        });
 
         // 2. ログインボタン
         document.getElementById('login-btn').onclick = () => {
             signInWithRedirect(auth, provider);
         };
 
-        // 3. ユーザー状態の監視（ここが一番大事）
-        onAuthStateChanged(auth, async (user) => {
-            const overlay = document.getElementById('login-overlay');
-            const appContent = document.getElementById('app-content');
-            if (user) {
-                currentUser = user;
-                overlay.style.setProperty('display', 'none', 'important');
-                appContent.classList.remove('hidden');
-                document.getElementById('user-name').innerText = user.displayName;
-                await loadData();
-            } else {
-                currentUser = null;
-                overlay.style.setProperty('display', 'flex', 'important');
-                appContent.classList.add('hidden');
+        // 3. リダイレクト処理と状態監視を統合
+        async function handleAuth() {
+            try {
+                // iPhoneのループを防ぐため、まず結果を待つ
+                await getRedirectResult(auth);
+            } catch (e) {
+                console.error("Auth Error", e);
             }
-        });
 
-        // --- データ処理ロジック ---
+            onAuthStateChanged(auth, async (user) => {
+                const overlay = document.getElementById('login-overlay');
+                const appContent = document.getElementById('app-content');
+                if (user) {
+                    currentUser = user;
+                    overlay.style.display = 'none';
+                    appContent.classList.remove('hidden');
+                    document.getElementById('user-name').innerText = user.displayName;
+                    await loadData();
+                } else {
+                    overlay.style.display = 'flex';
+                    appContent.classList.add('hidden');
+                }
+            });
+        }
+
+        handleAuth();
+
+        // --- データ/UIロジック ---
         async function loadData() {
             if (!currentUser) return;
             const docSnap = await getDoc(doc(db, "users", currentUser.uid));
@@ -111,7 +113,6 @@
             if (!currentUser) return;
             const statusEl = document.getElementById('save-status');
             statusEl.innerText = "● Syncing...";
-            statusEl.className = "text-[9px] font-bold text-orange-400 uppercase tracking-widest";
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             data.forEach((item, idx) => {
@@ -124,15 +125,11 @@
                     if(w) updates[item.name] = { weight: w.value, r1: r1.value, r2: r2.value, r3: r3.value, done: c.checked };
                 }
             });
-            try {
-                await setDoc(doc(db, "users", currentUser.uid), updates);
-                cloudData = updates;
-                statusEl.innerText = "● Cloud Synced";
-                statusEl.className = "text-[9px] font-bold text-emerald-500 uppercase tracking-widest";
-            } catch (e) { statusEl.innerText = "● Sync Error"; }
+            await setDoc(doc(db, "users", currentUser.uid), updates);
+            cloudData = updates;
+            statusEl.innerText = "● Cloud Synced";
         };
 
-        // --- メニューデータ ---
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
             { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
@@ -140,6 +137,7 @@
             { name: "TREADMILL INTERVAL", settings: "1m Up / 1m RUN / 2m WALK", type: "interval", duration: 900 },
             { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
+
         const menuB = [
             { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
             { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
@@ -147,15 +145,13 @@
             { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
 
-        // --- UI表示 ---
         function render() {
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
             container.innerHTML = data.map((item, idx) => `
                 <section class="bg-slate-800/40 p-5 rounded-[1.5rem] border border-slate-700 shadow-lg relative ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
-                    ${item.type === 'strength' ? `<div id="badge-${idx}" class="hidden absolute -top-3 left-5 bg-red-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full badge-anim z-20 shadow-xl">NEW RECORD 🔥</div>` : ''}
                     <div class="flex justify-between items-start mb-4">
-                        <div class="max-w-[80%]">
+                        <div>
                             <h2 class="font-black text-white text-base tracking-tight leading-tight uppercase">${item.name}</h2>
                             <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1">⚙️ ${item.settings}</p>
                         </div>
@@ -165,99 +161,20 @@
                         <div class="space-y-4">
                             <div class="flex items-center bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
                                 <span class="text-[9px] text-slate-500 font-black w-10 text-center uppercase">KG</span>
-                                <input type="number" inputmode="decimal" onfocus="this.select()" onblur="window.autoSave()" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}">
+                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()">
                                 <span class="w-10"></span>
                             </div>
                             <div class="flex justify-between gap-2">
-                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}">
-                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}">
-                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onblur="window.autoSave()">
                             </div>
                         </div>
-                    ` : `
-                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
-                            <div class="flex justify-between items-center mb-2 px-1">
-                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest" id="interval-status-${idx}">Ready</span>
-                                <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">${item.type === 'plank' ? '00:45' : (Math.floor(item.duration/60) + ':00')}</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button id="timer-btn-${idx}" onclick="window.${item.type === 'interval' ? 'startInterval' : 'startTimer'}(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest active:bg-blue-400 shadow-md">Start</button>
-                                <button onclick="window.resetTimer(${item.duration}, ${idx}, '${item.type}')" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest active:bg-slate-600">Reset</button>
-                            </div>
-                        </div>
-                    `}
+                    ` : `<p class="text-slate-500 text-[10px]">Timer Ready (Start via Click)</p>`}
                 </section>
             `).join('');
-            data.forEach((item, idx) => { if(item.type === 'strength') window.checkRecord(idx, item.name); });
         }
 
-        // --- 音声・タイマー ---
-        let audioCtx = null;
-        window.initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); };
-        const playBeep = (freq = 880, dur = 0.2) => {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.type = "square"; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + dur);
-            osc.start(); osc.stop(audioCtx.currentTime + dur);
-        };
-        window.startInterval = (totalSeconds, idx) => {
-            if (activeTimers[idx]) return;
-            window.initAudio();
-            let elapsed = 0;
-            const display = document.getElementById(`timer-display-${idx}`);
-            const status = document.getElementById(`interval-status-${idx}`);
-            const btn = document.getElementById(`timer-btn-${idx}`);
-            btn.disabled = true; btn.classList.add('opacity-30');
-            activeTimers[idx] = setInterval(() => {
-                elapsed++;
-                let remaining = totalSeconds - elapsed;
-                let phase = "";
-                if (elapsed <= 60) { phase = "Warmup"; if (elapsed === 60) playBeep(1000, 0.4); }
-                else { let cycleElapsed = (elapsed - 60) % 180; if (cycleElapsed <= 60 && cycleElapsed !== 0) { phase = "🏃 RUN"; if (cycleElapsed === 60) playBeep(1000, 0.4); } else { phase = "🚶 WALK"; if (cycleElapsed === 0) playBeep(1000, 0.4); } }
-                status.innerText = phase;
-                const m = Math.floor(remaining / 60); const s = remaining % 60;
-                display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                if (remaining <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; btn.disabled = false; btn.classList.remove('opacity-30'); status.innerText = "Finish!"; playBeep(1200, 1.0); }
-            }, 1000);
-        };
-        window.startTimer = (seconds, idx) => {
-            if (activeTimers[idx]) return;
-            window.initAudio();
-            let timeLeft = seconds;
-            const display = document.getElementById(`timer-display-${idx}`);
-            const btn = document.getElementById(`timer-btn-${idx}`);
-            btn.disabled = true; btn.classList.add('opacity-30');
-            activeTimers[idx] = setInterval(() => {
-                timeLeft--;
-                const m = Math.floor(timeLeft / 60); const s = timeLeft % 60;
-                display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                if (timeLeft <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; btn.disabled = false; btn.classList.remove('opacity-30'); playBeep(880, 0.6); }
-            }, 1000);
-        };
-        window.resetTimer = (seconds, idx, type) => {
-            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
-            document.getElementById(`timer-display-${idx}`).innerText = type === 'plank' ? '00:45' : (Math.floor(seconds/60) + ':00');
-            const status = document.getElementById(`interval-status-${idx}`);
-            if(status) status.innerText = "Ready";
-            document.getElementById(`timer-btn-${idx}`).disabled = false;
-            document.getElementById(`timer-btn-${idx}`).classList.remove('opacity-30');
-        };
-        window.checkRecord = (idx, name) => {
-            const r1 = parseInt(document.getElementById(`r1-${idx}`).value) || 0;
-            const r2 = parseInt(document.getElementById(`r2-${idx}`).value) || 0;
-            const r3 = parseInt(document.getElementById(`r3-${idx}`).value) || 0;
-            const currentTotal = r1 + r2 + r3;
-            const prevTotal = (parseInt(cloudData[name]?.r1) || 0) + (parseInt(cloudData[name]?.r2) || 0) + (parseInt(cloudData[name]?.r3) || 0);
-            const badge = document.getElementById(`badge-${idx}`);
-            const card = document.getElementById(`item-${idx}`);
-            if (currentTotal > prevTotal && prevTotal > 0) { badge.classList.remove('hidden'); card.classList.add('record-glow'); }
-            else { badge.classList.add('hidden'); card.classList.remove('record-glow'); }
-        };
         window.switchMenu = (type) => {
             currentMenu = type;
             document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
