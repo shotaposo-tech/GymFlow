@@ -15,24 +15,24 @@
         @keyframes glow-pulse { 0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); } 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } }
         .badge-anim { animation: badge-pop 0.5s ease-out; }
         @keyframes badge-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        #login-overlay { background: rgba(15, 23, 42, 0.95); backdrop-blur: 10px; }
+        #login-overlay { background: rgba(15, 23, 42, 0.95); backdrop-blur: 10px; display: flex; }
     </style>
 </head>
 <body class="min-h-screen pb-10 text-slate-200" onclick="initAudio()">
 
     <div id="login-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center">
-        <h1 class="text-3xl font-black mb-2 tracking-tighter">GymFlow Pro</h1>
-        <p class="text-slate-400 text-sm mb-8">Cloud Sync & Personal Logs</p>
-        <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-8 rounded-2xl flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
+        <h1 class="text-4xl font-black mb-2 tracking-tighter text-white">GymFlow Pro</h1>
+        <p class="text-slate-400 text-sm mb-12">Cloud Sync & Personal Logs</p>
+        <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
-            Googleアカウントでログイン
+            Googleでログイン
         </button>
     </div>
 
     <div id="app-content" class="hidden">
         <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 pt-10 pb-2 border-b border-slate-700">
             <div class="flex justify-between items-center px-6 mb-2">
-                <span id="user-name" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Guest</span>
+                <span id="user-name" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading...</span>
                 <span id="save-status" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">● Cloud Synced</span>
             </div>
             <div class="flex justify-around text-center font-bold">
@@ -47,9 +47,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // あなたのFirebase設定を反映済み
         const firebaseConfig = {
           apiKey: "AIzaSyAEq0qGFrNvQeBDRffBMXb-m5xa3bPYlMg",
           authDomain: "gymflmw.firebaseapp.com",
@@ -70,36 +69,33 @@
         let activeTimers = {};
         let currentMenu = 'A';
 
-        // ログイン処理
-        document.getElementById('login-btn').onclick = async () => {
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error(error);
-                alert("ログインに失敗しました。Firebase側でGoogle認証と承認済みドメインを確認してください。");
-            }
+        // --- 認証フロー (iPhone最適化版) ---
+        document.getElementById('login-btn').onclick = () => {
+            signInWithRedirect(auth, provider);
         };
 
-        // ログイン状態監視
+        // リダイレクト後の結果受け取り
+        getRedirectResult(auth).catch((error) => console.error("Auth Error:", error));
+
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
-                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('login-overlay').style.display = 'none';
                 document.getElementById('app-content').classList.remove('hidden');
                 document.getElementById('user-name').innerText = user.displayName;
                 await loadData();
             } else {
-                document.getElementById('login-overlay').classList.remove('hidden');
+                document.getElementById('login-overlay').style.display = 'flex';
                 document.getElementById('app-content').classList.add('hidden');
             }
         });
 
-        // 音声設定（Bluetoothイヤホン・Apple Music対応）
+        // --- 音声エンジン ---
         let audioCtx = null;
         window.initAudio = () => { 
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                playBeep(440, 0.05); // 初期化テスト音
+                playBeep(440, 0.05); 
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
         };
@@ -109,7 +105,7 @@
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.type = "square"; // 聞き取りやすい矩形波
+            osc.type = "square";
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
             gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
@@ -117,7 +113,6 @@
             osc.start(); osc.stop(audioCtx.currentTime + dur);
         };
 
-        // メニュー構成
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
             { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
@@ -136,13 +131,10 @@
         async function loadData() {
             if (!currentUser) return;
             const docSnap = await getDoc(doc(db, "users", currentUser.uid));
-            if (docSnap.exists()) {
-                cloudData = docSnap.data();
-            }
+            if (docSnap.exists()) cloudData = docSnap.data();
             render();
         }
 
-        // オートセーブ機能
         window.autoSave = async () => {
             if (!currentUser) return;
             const statusEl = document.getElementById('save-status');
@@ -169,7 +161,6 @@
                 statusEl.innerText = "● Cloud Synced";
                 statusEl.className = "text-[9px] font-bold text-emerald-500 uppercase tracking-widest";
             } catch (e) {
-                console.error(e);
                 statusEl.innerText = "● Sync Error";
             }
         };
@@ -195,9 +186,9 @@
                                 <span class="w-10"></span>
                             </div>
                             <div class="flex justify-between gap-2">
-                                <input type="number" inputmode="numeric" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" placeholder="-" value="${cloudData[item.name]?.r1 || ''}">
-                                <input type="number" inputmode="numeric" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" placeholder="-" value="${cloudData[item.name]?.r2 || ''}">
-                                <input type="number" inputmode="numeric" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" placeholder="-" value="${cloudData[item.name]?.r3 || ''}">
+                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}">
+                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}">
+                                <input type="number" inputmode="numeric" placeholder="-" onfocus="this.select()" onblur="window.autoSave()" oninput="window.checkRecord(${idx}, '${item.name}')" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}">
                             </div>
                         </div>
                     ` : `
@@ -217,7 +208,6 @@
             data.forEach((item, idx) => { if(item.type === 'strength') window.checkRecord(idx, item.name); });
         }
 
-        // タイマー（1分アップ、1分ラン / 2分ウォーク繰り返し）
         window.startInterval = (totalSeconds, idx) => {
             if (activeTimers[idx]) return;
             window.initAudio();
