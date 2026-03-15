@@ -14,10 +14,35 @@
         #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; align-items: center; justify-content: center; }
         .done { opacity: 0.3; filter: grayscale(0.5); border-color: #1e293b !important; }
         .active-tab { color: #3b82f6; border-bottom: 4px solid #3b82f6; }
-        .new-record-glow { border: 2px solid #fbbf24 !important; box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); animation: pulse-gold 2s infinite; }
-        @keyframes pulse-gold { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
-        #praise-popup { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 300; pointer-events: none; transition: all 0.5s ease; opacity: 0; }
-        .show-praise { opacity: 1 !important; transform: translate(-50%, -20px) !important; }
+        
+        /* 巨大褒め言葉アニメーション */
+        #praise-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(0.5);
+        }
+        #praise-overlay.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .praise-text {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 3.5rem;
+            font-weight: 900;
+            text-align: center;
+            line-height: 1.2;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+            padding: 20px;
+        }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -34,8 +59,8 @@
         </button>
     </div>
 
-    <div id="praise-popup" class="bg-blue-600 text-white px-8 py-4 rounded-full font-black text-lg shadow-2xl border-2 border-white whitespace-nowrap">
-        GREAT JOB! 🔥
+    <div id="praise-overlay">
+        <div id="praise-target" class="praise-text">MAX POWER!</div>
     </div>
 
     <div id="app-content" class="hidden">
@@ -72,7 +97,7 @@
         let currentMenu = 'A';
         let activeTimers = {};
 
-        const praises = ["限界突破！🔥", "成長が止まりませんね！✨", "最高にキレてます！💪", "過去の自分を超えましたね！", "ナイスバルク！👍"];
+        const praises = ["限界突破！", "ナイスバルク！", "キレてる！", "最高です！", "新記録！", "成長の塊！"];
 
         document.getElementById('login-btn').onclick = async () => {
             try {
@@ -102,10 +127,11 @@
         }
 
         window.showPraise = () => {
-            const popup = document.getElementById('praise-popup');
-            popup.innerText = praises[Math.floor(Math.random() * praises.length)];
-            popup.classList.add('show-praise');
-            setTimeout(() => popup.classList.remove('show-praise'), 2500);
+            const overlay = document.getElementById('praise-overlay');
+            const target = document.getElementById('praise-target');
+            target.innerText = praises[Math.floor(Math.random() * praises.length)];
+            overlay.classList.add('show');
+            setTimeout(() => overlay.classList.remove('show'), 2000);
         };
 
         window.autoSave = async (isCheck = false) => {
@@ -122,7 +148,6 @@
                     const r2 = document.getElementById(`r2-${idx}`).value;
                     const r3 = document.getElementById(`r3-${idx}`).value;
                     
-                    // 記録更新チェック
                     const prev = cloudData[item.name] || {};
                     const total = Number(r1) + Number(r2) + Number(r3);
                     const prevTotal = Number(prev.r1||0) + Number(prev.r2||0) + Number(prev.r3||0);
@@ -130,7 +155,6 @@
                     if (isCheck && c.checked && (Number(w) > Number(prev.weight||0) || total > prevTotal)) {
                         hasRecordUpdate = true;
                     }
-
                     updates[item.name] = { weight: w, r1: r1, r2: r2, r3: r3, done: c.checked };
                 } else {
                     if(c) updates[item.name] = { ...cloudData[item.name], done: c.checked };
@@ -138,14 +162,12 @@
             });
 
             if (hasRecordUpdate) window.showPraise();
-            await setDoc(doc(doc(db, "users", currentUser.uid)), updates);
+            await setDoc(doc(db, "users", currentUser.uid), updates);
             cloudData = updates;
         };
 
         window.handleInput = (el, nextId) => {
-            if (el.value.length >= 2 && nextId) {
-                document.getElementById(nextId).focus();
-            }
+            if (el.value.length >= 2 && nextId) document.getElementById(nextId).focus();
             window.autoSave();
         };
 
@@ -179,36 +201,31 @@
             const data = currentMenu === 'A' ? menuA : menuB;
             container.innerHTML = data.map((item, idx) => {
                 const prev = cloudData[item.name] || {};
-                const isWeightUp = Number(prev.weight) > 0 && Number(prev.weight) > Number(prev.prevWeight || 0); // ここは簡易化
-                
                 return `
-                <section class="bg-slate-800/60 p-6 rounded-[2rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-6">
+                <section class="bg-slate-800/60 p-6 rounded-[2.5rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-6 px-1">
                         <div class="flex-1">
-                            <h2 class="font-black text-white text-2xl tracking-tighter uppercase leading-tight">${item.name}</h2>
-                            <p class="text-emerald-400 text-xs font-bold uppercase tracking-[0.1em] mt-1 opacity-80">⚙️ ${item.settings}</p>
+                            <h2 class="font-black text-white text-[1.75rem] tracking-tighter uppercase leading-none">${item.name}</h2>
+                            <p class="text-emerald-400 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">${item.settings}</p>
                         </div>
                         <input type="checkbox" id="check-${idx}" class="w-10 h-10 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
                     </div>
                     ${item.type === 'strength' ? `
                         <div class="space-y-4">
-                            <div class="relative flex items-center bg-slate-900/80 p-4 rounded-2xl border border-slate-600 focus-within:border-blue-500 transition-all">
-                                <span class="text-xs text-slate-500 font-black w-12 uppercase">Weight</span>
-                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-3xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
-                                <span class="text-sm text-slate-500 font-black w-12 text-right">KG</span>
+                            <div class="flex items-center bg-slate-900/80 p-5 rounded-2xl border border-slate-600">
+                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-4xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
+                                <span class="absolute right-12 text-xs text-slate-500 font-black uppercase">KG</span>
                             </div>
                             <div class="flex justify-between gap-3">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-4 rounded-xl text-2xl font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-5 rounded-xl text-2xl font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
                                 `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
-                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-600">
-                            <div class="flex justify-between items-center mb-4">
-                                <span class="font-mono text-4xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
-                                <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-8 py-3 rounded-xl uppercase text-sm shadow-lg active:scale-95 transition-all">Start</button>
-                            </div>
+                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-600 flex justify-between items-center">
+                            <span class="font-mono text-4xl font-black text-blue-400 px-2" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-10 py-4 rounded-xl uppercase text-sm shadow-lg active:scale-95 transition-all">Start</button>
                         </div>
                     ` : '')}
                 </section>
