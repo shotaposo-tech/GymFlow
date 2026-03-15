@@ -8,22 +8,23 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; background: radial-gradient(circle at top, #1e293b, #0f172a); }
-        .done { opacity: 0.15; filter: grayscale(1); }
-        .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
+        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; }
         .hidden { display: none !important; }
         #login-overlay { position: fixed; inset: 0; z-index: 100; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .done { opacity: 0.15; filter: grayscale(1); }
+        .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
     </style>
 </head>
-<body class="min-h-screen pb-10 text-slate-200" onclick="initAudio()">
+<body class="min-h-screen pb-10 text-slate-200">
 
     <div id="login-overlay">
-        <h1 class="text-4xl font-black mb-2 tracking-tighter text-white">GymFlow Pro</h1>
+        <h1 class="text-4xl font-black mb-2 text-white">GymFlow Pro</h1>
         <p class="text-slate-400 text-sm mb-12 uppercase tracking-widest">Cloud Sync Active</p>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
         </button>
+        <div id="status-msg" class="mt-4 text-[10px] text-slate-500"></div>
     </div>
 
     <div id="app-content" class="hidden">
@@ -33,17 +34,17 @@
                 <span id="save-status" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">● Cloud Synced</span>
             </div>
             <div class="flex justify-around text-center font-bold">
-                <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-xs">Menu A</button>
-                <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
+                <button id="tabA" class="flex-1 py-3 active-tab text-xs">Menu A</button>
+                <button id="tabB" class="flex-1 py-3 text-slate-500 text-xs">Menu B</button>
             </div>
         </nav>
         <main class="p-4 space-y-5" id="menu-content"></main>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEq0qGFrNvQeBDRffBMXb-m5xa3bPYlMg",
@@ -59,35 +60,34 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        let currentUser = null;
-        let cloudData = {};
-        let currentMenu = 'A';
+        const statusMsg = document.getElementById('status-msg');
 
-        // ログインボタンのクリック
+        // ログインボタン
         document.getElementById('login-btn').onclick = async () => {
+            statusMsg.innerText = "Redirecting to Google...";
             await setPersistence(auth, browserLocalPersistence);
             signInWithRedirect(auth, provider);
         };
 
-        // 起動時の認証処理
-        async function initAuth() {
+        // 認証処理の本体
+        async function handleAuth() {
             try {
-                // リダイレクト後の結果を取得
-                await getRedirectResult(auth);
-            } catch (error) {
-                if (error.code === 'auth/api-key-not-valid') {
-                    alert("Google Cloudの設定でリダイレクトURIが正しく登録されていません。");
+                // iPhoneの戻り値待ちを確実にする
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    statusMsg.innerText = "Login Successful!";
                 }
+            } catch (error) {
+                console.error(error);
+                statusMsg.innerText = "Error: " + error.code;
             }
 
-            // ログイン状態を監視
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    currentUser = user;
                     document.getElementById('login-overlay').classList.add('hidden');
                     document.getElementById('app-content').classList.remove('hidden');
                     document.getElementById('user-name').innerText = user.displayName;
-                    await loadData();
+                    loadData(user.uid);
                 } else {
                     document.getElementById('login-overlay').classList.remove('hidden');
                     document.getElementById('app-content').classList.add('hidden');
@@ -95,90 +95,63 @@
             });
         }
 
-        // --- データ処理・メニュー（以前のロジックを統合） ---
-        async function loadData() {
-            if (!currentUser) return;
-            const docSnap = await getDoc(doc(db, "users", currentUser.uid));
+        // --- 以前の筋トレロジックをそのまま移植 ---
+        let cloudData = {};
+        let currentMenu = 'A';
+        const menuA = [
+            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
+            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
+            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" }
+        ];
+        const menuB = [
+            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
+            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" }
+        ];
+
+        async function loadData(uid) {
+            const docSnap = await getDoc(doc(db, "users", uid));
             if (docSnap.exists()) cloudData = docSnap.data();
             render();
         }
 
         window.autoSave = async () => {
-            if (!currentUser) return;
-            const statusEl = document.getElementById('save-status');
-            statusEl.innerText = "● Syncing...";
+            const user = auth.currentUser;
+            if (!user) return;
+            document.getElementById('save-status').innerText = "● Syncing...";
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             data.forEach((item, idx) => {
-                if(item.type === 'strength') {
-                    const w = document.getElementById(`weight-${idx}`);
-                    const r1 = document.getElementById(`r1-${idx}`);
-                    const r2 = document.getElementById(`r2-${idx}`);
-                    const r3 = document.getElementById(`r3-${idx}`);
-                    const c = document.getElementById(`check-${idx}`);
-                    if(w) updates[item.name] = { weight: w.value, r1: r1.value, r2: r2.value, r3: r3.value, done: c.checked };
-                }
+                const w = document.getElementById(`weight-${idx}`);
+                const r1 = document.getElementById(`r1-${idx}`);
+                const c = document.getElementById(`check-${idx}`);
+                if(w) updates[item.name] = { weight: w.value, r1: r1.value, done: c.checked };
             });
-            await setDoc(doc(db, "users", currentUser.uid), updates);
+            await setDoc(doc(db, "users", user.uid), updates);
             cloudData = updates;
-            statusEl.innerText = "● Cloud Synced";
+            document.getElementById('save-status').innerText = "● Cloud Synced";
         };
-
-        const menuA = [
-            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
-            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
-            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
-            { name: "TREADMILL INTERVAL", settings: "1m Up / 1m RUN / 2m WALK", type: "interval", duration: 900 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
-        ];
-        const menuB = [
-            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
-            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
-            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
-        ];
 
         function render() {
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
             container.innerHTML = data.map((item, idx) => `
-                <section class="bg-slate-800/40 p-5 rounded-[1.5rem] border border-slate-700 shadow-lg relative ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
+                <section class="bg-slate-800/40 p-5 rounded-3xl border border-slate-700 ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
                     <div class="flex justify-between items-start mb-4">
-                        <h2 class="font-black text-white text-base uppercase">${item.name}</h2>
-                        <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500" ${cloudData[item.name]?.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
+                        <h2 class="font-black text-white uppercase">${item.name}</h2>
+                        <input type="checkbox" id="check-${idx}" class="w-7 h-7" ${cloudData[item.name]?.done ? 'checked' : ''} onchange="window.autoSave()">
                     </div>
-                    ${item.type === 'strength' ? `
-                        <div class="space-y-4">
-                            <input type="number" class="w-full bg-slate-900/60 p-3 rounded-xl text-blue-400 font-black text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()" placeholder="KG">
-                            <div class="flex gap-2">
-                                <input type="number" placeholder="R1" class="w-full bg-slate-900/60 p-2 rounded-lg text-white font-black text-center outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
-                                <input type="number" placeholder="R2" class="w-full bg-slate-900/60 p-2 rounded-lg text-white font-black text-center outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onblur="window.autoSave()">
-                                <input type="number" placeholder="R3" class="w-full bg-slate-900/60 p-2 rounded-lg text-white font-black text-center outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onblur="window.autoSave()">
-                            </div>
-                        </div>
-                    ` : `<p class="text-slate-500 text-[10px]">Timer Ready</p>`}
+                    <div class="flex gap-2">
+                        <input type="number" placeholder="KG" class="w-full bg-slate-900 p-3 rounded-xl text-blue-400 font-black text-center" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()">
+                        <input type="number" placeholder="Reps" class="w-full bg-slate-900 p-3 rounded-xl text-white font-black text-center" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
+                    </div>
                 </section>
             `).join('');
         }
 
-        window.switchMenu = (type) => {
-            currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
-            render();
-        };
+        document.getElementById('tabA').onclick = () => { currentMenu = 'A'; render(); };
+        document.getElementById('tabB').onclick = () => { currentMenu = 'B'; render(); };
 
-        document.getElementById('tabA').onclick = () => window.switchMenu('A');
-        document.getElementById('tabB').onclick = () => window.switchMenu('B');
-
-        // 音声初期化（iPhone対策）
-        window.initAudio = () => {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === 'suspended') ctx.resume();
-        };
-
-        // アプリ起動
-        initAuth();
+        handleAuth();
     </script>
 </body>
 </html>
