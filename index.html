@@ -23,7 +23,7 @@
     </div>
 
     <div id="login-overlay" class="hidden">
-        <h1 class="text-4xl font-black mb-12 text-white italic tracking-tighter">GymFlow Pro</h1>
+        <h1 class="text-4xl font-black mb-12 text-white italic tracking-tighter text-center">GymFlow<br>Pro</h1>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
@@ -62,6 +62,7 @@
         let currentUser = null;
         let cloudData = {};
         let currentMenu = 'A';
+        let activeTimers = {};
 
         document.getElementById('login-btn').onclick = async () => {
             try {
@@ -95,15 +96,14 @@
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             data.forEach((item, idx) => {
-                if(item.type === 'strength') {
+                const c = document.getElementById(`check-${idx}`);
+                if (item.type === 'strength') {
                     const w = document.getElementById(`weight-${idx}`);
                     const r1 = document.getElementById(`r1-${idx}`);
                     const r2 = document.getElementById(`r2-${idx}`);
                     const r3 = document.getElementById(`r3-${idx}`);
-                    const c = document.getElementById(`check-${idx}`);
                     if(w) updates[item.name] = { weight: w.value, r1: r1.value, r2: r2.value, r3: r3.value, done: c.checked };
                 } else {
-                    const c = document.getElementById(`check-${idx}`);
                     if(c) updates[item.name] = { ...cloudData[item.name], done: c.checked };
                 }
             });
@@ -111,19 +111,44 @@
             cloudData = updates;
         };
 
+        // 次の入力欄へ移動 & タップ時に全選択
+        window.handleInput = (el, nextId) => {
+            if (el.value.length >= 2 && nextId) {
+                const nextEl = document.getElementById(nextId);
+                if (nextEl) nextEl.focus();
+            }
+            window.autoSave();
+        };
+
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
             { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
             { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
             { name: "TREADMILL", settings: "15min Interval", type: "cardio" },
-            { name: "PLANK", settings: "45s x 2sets", type: "cardio" }
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
         const menuB = [
             { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
             { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
             { name: "TREADMILL", settings: "20min Walking", type: "cardio" },
-            { name: "PLANK", settings: "45s x 2sets", type: "cardio" }
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
         ];
+
+        window.startTimer = (seconds, idx) => {
+            if (activeTimers[idx]) return;
+            let timeLeft = seconds;
+            const display = document.getElementById(`timer-display-${idx}`);
+            activeTimers[idx] = setInterval(() => {
+                timeLeft--;
+                display.innerText = `00:${String(timeLeft).padStart(2,'0')}`;
+                if (timeLeft <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
+            }, 1000);
+        };
+
+        window.resetTimer = (seconds, idx) => {
+            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
+            document.getElementById(`timer-display-${idx}`).innerText = `00:${seconds}`;
+        };
 
         function render() {
             const container = document.getElementById('menu-content');
@@ -141,16 +166,27 @@
                         <div class="space-y-4">
                             <div class="flex items-center bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
                                 <span class="text-[9px] text-slate-500 font-black w-10 text-center">KG</span>
-                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
                                 <span class="w-10"></span>
                             </div>
                             <div class="flex justify-between gap-2">
-                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
-                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onblur="window.autoSave()">
-                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="numeric" placeholder="R1" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onfocus="this.select()" oninput="window.handleInput(this, 'r2-${idx}')">
+                                <input type="number" inputmode="numeric" placeholder="R2" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onfocus="this.select()" oninput="window.handleInput(this, 'r3-${idx}')">
+                                <input type="number" inputmode="numeric" placeholder="R3" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onfocus="this.select()" oninput="window.handleInput(this, null)">
                             </div>
                         </div>
-                    ` : ''}
+                    ` : (item.type === 'plank' ? `
+                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                            <div class="flex justify-between items-center mb-2 px-1">
+                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Countdown</span>
+                                <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="window.startTimer(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest active:bg-blue-400">Start</button>
+                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest">Reset</button>
+                            </div>
+                        </div>
+                    ` : '')}
                 </section>
             `).join('');
         }
