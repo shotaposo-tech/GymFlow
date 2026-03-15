@@ -12,10 +12,9 @@
         .hidden { display: none !important; }
         #login-overlay { position: fixed; inset: 0; z-index: 100; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; align-items: center; justify-content: center; }
-        .done { opacity: 0.3; filter: grayscale(0.8); border-color: #1e293b !important; }
-        .active-tab { color: #3b82f6; border-bottom: 4px solid #3b82f6; }
+        .done { opacity: 0.25; filter: grayscale(0.9); border-color: #1e293b !important; }
+        .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
         
-        /* 巨大赤エフェクト */
         #praise-overlay {
             position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 500;
             pointer-events: none; opacity: 0; transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
@@ -23,15 +22,15 @@
         }
         #praise-overlay.show { opacity: 1; transform: scale(1) rotate(0deg); animation: shake 0.5s ease-in-out; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
-        .praise-text { color: #ff0000; font-size: 5rem; font-weight: 900; text-align: center; line-height: 1; text-shadow: 0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,0,0,0.4); letter-spacing: -0.05em; font-style: italic; }
+        .praise-text { color: #ff0000; font-size: 4rem; font-weight: 900; text-align: center; line-height: 1; text-shadow: 0 0 20px rgba(255,0,0,0.8); font-style: italic; }
 
         .logo-font { letter-spacing: 0.2em; font-weight: 900; font-style: italic; text-indent: 0.2em; }
     </style>
 </head>
-<body class="min-h-screen pb-24">
+<body class="min-h-screen pb-20">
 
     <div id="loading-overlay">
-        <div class="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase">Syncing...</div>
+        <div class="text-slate-500 font-bold animate-pulse text-[10px] tracking-widest uppercase">Syncing...</div>
     </div>
 
     <div id="login-overlay" class="hidden">
@@ -48,17 +47,17 @@
 
     <div id="app-content" class="hidden">
         <header class="bg-slate-900/95 backdrop-blur-xl sticky top-0 z-10 border-b border-slate-700">
-            <div class="text-center pt-4 pb-2">
-                <h1 class="logo-font text-white text-3xl uppercase">GymFlow</h1>
+            <div class="text-center pt-3 pb-1">
+                <h1 class="logo-font text-white text-2xl uppercase">GymFlow</h1>
             </div>
-            <div class="flex justify-around items-center font-bold px-4 h-10">
-                <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]">Menu A</button>
-                <button id="tabB" class="flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]">Menu B</button>
-                <button onclick="window.resetChecks()" class="ml-4 bg-slate-800 text-slate-400 text-[9px] px-3 py-1 rounded-full border border-slate-600 active:bg-red-900 active:text-white transition-all">Reset</button>
+            <div class="flex justify-around items-center font-bold px-4 h-9">
+                <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]">Menu A</button>
+                <button id="tabB" class="flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[10px]">Menu B</button>
+                <button onclick="window.resetChecks()" class="ml-4 bg-slate-800 text-slate-400 text-[8px] px-2.5 py-1 rounded-full border border-slate-600 active:bg-red-900 active:text-white transition-all">Reset</button>
             </div>
         </header>
 
-        <main class="p-4 space-y-4" id="menu-content"></main>
+        <main class="p-3 space-y-3" id="menu-content"></main>
     </div>
 
     <script type="module">
@@ -85,13 +84,13 @@
         let currentMenu = 'A';
         let activeTimers = {};
 
-        const praises = ["限界突破！", "新記録！", "覚醒！", "ヤバすぎる！", "最強！", "OVER LIMIT!"];
+        const praises = ["限界突破！", "新記録！", "覚醒！", "最強！", "OVER LIMIT!"];
 
         document.getElementById('login-btn').onclick = async () => {
             try {
                 await setPersistence(auth, browserLocalPersistence);
                 await signInWithPopup(auth, provider);
-            } catch (e) { alert("Login Error: " + e.message); }
+            } catch (e) { alert("Login Error"); }
         };
 
         onAuthStateChanged(auth, async (user) => {
@@ -136,14 +135,10 @@
                     const r1 = document.getElementById(`r1-${idx}`).value;
                     const r2 = document.getElementById(`r2-${idx}`).value;
                     const r3 = document.getElementById(`r3-${idx}`).value;
-                    
                     const prev = cloudData[item.name] || {};
                     const total = Number(r1) + Number(r2) + Number(r3);
                     const prevTotal = Number(prev.r1||0) + Number(prev.r2||0) + Number(prev.r3||0);
-                    
-                    if (isCheck && c.checked && (Number(w) > Number(prev.weight||0) || total > prevTotal)) {
-                        hasRecordUpdate = true;
-                    }
+                    if (isCheck && c.checked && (Number(w) > Number(prev.weight||0) || total > prevTotal)) hasRecordUpdate = true;
                     updates[item.name] = { weight: w, r1: r1, r2: r2, r3: r3, done: c.checked };
                 } else {
                     updates[item.name] = { ...cloudData[item.name], done: c.checked };
@@ -156,7 +151,7 @@
         };
 
         window.resetChecks = async () => {
-            if (!confirm("全てのチェックを外しますか？")) return;
+            if (!confirm("リセットしますか？")) return;
             Object.keys(cloudData).forEach(key => { if(cloudData[key]) cloudData[key].done = false; });
             await setDoc(doc(db, "users", currentUser.uid), cloudData);
             render();
@@ -201,30 +196,30 @@
             container.innerHTML = data.map((item, idx) => {
                 const prev = cloudData[item.name] || {};
                 return `
-                <section class="bg-slate-800/60 p-4 rounded-[1.5rem] border border-slate-700 shadow-xl ${prev.done ? 'done' : ''}" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-3">
+                <section class="bg-slate-800/60 p-3 rounded-2xl border border-slate-700 shadow-lg ${prev.done ? 'done' : ''}" id="item-${idx}">
+                    <div class="flex justify-between items-center mb-2">
                         <div class="flex-1">
-                            <h2 class="font-black text-white text-lg tracking-tight uppercase leading-tight">${item.name}</h2>
-                            <p class="text-emerald-400 text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-70">${item.settings}</p>
+                            <h2 class="font-black text-white text-base tracking-tight uppercase leading-tight">${item.name}</h2>
+                            <p class="text-emerald-400 text-[8px] font-bold uppercase tracking-widest opacity-70">${item.settings}</p>
                         </div>
-                        <input type="checkbox" id="check-${idx}" class="w-8 h-8 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
+                        <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
                     </div>
                     ${item.type === 'strength' ? `
-                        <div class="space-y-2">
-                            <div class="flex items-center bg-slate-900/80 p-2 rounded-xl border border-slate-600 relative">
-                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
-                                <span class="absolute right-4 text-[8px] text-slate-500 font-black uppercase">KG</span>
+                        <div class="flex gap-2">
+                            <div class="w-1/3 bg-slate-900/80 p-1.5 rounded-lg border border-slate-600 relative flex items-center">
+                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-lg font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
+                                <span class="absolute right-2 text-[7px] text-slate-500 font-black">KG</span>
                             </div>
-                            <div class="flex justify-between gap-2">
+                            <div class="w-2/3 flex gap-1">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-2.5 rounded-xl text-lg font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-1.5 rounded-lg text-base font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
                                 `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
-                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-600 flex justify-between items-center">
-                            <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
-                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-6 py-2 rounded-lg uppercase text-[9px] shadow-lg active:scale-95 transition-all">Start</button>
+                        <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-600 flex justify-between items-center">
+                            <span class="font-mono text-xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-4 py-1.5 rounded-md uppercase text-[8px] shadow-lg active:scale-95 transition-all">Start</button>
                         </div>
                     ` : '')}
                 </section>
@@ -233,8 +228,8 @@
 
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[10px]';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[10px]';
             render();
         };
 
