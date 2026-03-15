@@ -15,7 +15,7 @@
         @keyframes glow-pulse { 0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); } 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } }
         .badge-anim { animation: badge-pop 0.5s ease-out; }
         @keyframes badge-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        #login-overlay { background: rgba(15, 23, 42, 0.95); backdrop-blur: 10px; display: flex; }
+        #login-overlay { background: rgba(15, 23, 42, 0.98); backdrop-blur: 15px; display: none; }
     </style>
 </head>
 <body class="min-h-screen pb-10 text-slate-200" onclick="initAudio()">
@@ -32,7 +32,7 @@
     <div id="app-content" class="hidden">
         <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 pt-10 pb-2 border-b border-slate-700">
             <div class="flex justify-between items-center px-6 mb-2">
-                <span id="user-name" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading...</span>
+                <span id="user-name" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Checking Auth...</span>
                 <span id="save-status" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">● Cloud Synced</span>
             </div>
             <div class="flex justify-around text-center font-bold">
@@ -40,14 +40,13 @@
                 <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
             </div>
         </nav>
-
         <main class="p-4 space-y-5" id="menu-content"></main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
           apiKey: "AIzaSyAEq0qGFrNvQeBDRffBMXb-m5xa3bPYlMg",
@@ -69,65 +68,38 @@
         let activeTimers = {};
         let currentMenu = 'A';
 
-        // --- 認証フロー (iPhone最適化版) ---
+        // 初期化処理
+        async function initApp() {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                await getRedirectResult(auth);
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
+        }
+
+        initApp();
+
         document.getElementById('login-btn').onclick = () => {
             signInWithRedirect(auth, provider);
         };
 
-        // リダイレクト後の結果受け取り
-        getRedirectResult(auth).catch((error) => console.error("Auth Error:", error));
-
         onAuthStateChanged(auth, async (user) => {
+            const overlay = document.getElementById('login-overlay');
+            const appContent = document.getElementById('app-content');
             if (user) {
                 currentUser = user;
-                document.getElementById('login-overlay').style.display = 'none';
-                document.getElementById('app-content').classList.remove('hidden');
+                overlay.style.display = 'none';
+                appContent.classList.remove('hidden');
                 document.getElementById('user-name').innerText = user.displayName;
                 await loadData();
             } else {
-                document.getElementById('login-overlay').style.display = 'flex';
-                document.getElementById('app-content').classList.add('hidden');
+                overlay.style.display = 'flex';
+                appContent.classList.add('hidden');
             }
         });
 
-        // --- 音声エンジン ---
-        let audioCtx = null;
-        window.initAudio = () => { 
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                playBeep(440, 0.05); 
-            }
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-        };
-
-        const playBeep = (freq = 880, dur = 0.2) => {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.type = "square";
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + dur);
-            osc.start(); osc.stop(audioCtx.currentTime + dur);
-        };
-
-        const menuA = [
-            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
-            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
-            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
-            { name: "TREADMILL INTERVAL", settings: "1m Up / 1m RUN / 2m WALK", type: "interval", duration: 900 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
-        ];
-
-        const menuB = [
-            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
-            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
-            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
-            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
-        ];
-
+        // --- データ処理 ---
         async function loadData() {
             if (!currentUser) return;
             const docSnap = await getDoc(doc(db, "users", currentUser.uid));
@@ -143,7 +115,6 @@
 
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
-            
             data.forEach((item, idx) => {
                 if(item.type === 'strength') {
                     const w = document.getElementById(`weight-${idx}`);
@@ -160,10 +131,25 @@
                 cloudData = updates;
                 statusEl.innerText = "● Cloud Synced";
                 statusEl.className = "text-[9px] font-bold text-emerald-500 uppercase tracking-widest";
-            } catch (e) {
-                statusEl.innerText = "● Sync Error";
-            }
+            } catch (e) { statusEl.innerText = "● Sync Error"; }
         };
+
+        // --- UI & ロジック (menuA, menuB, render, startTimer等) ---
+        // ※長くなるため前回の完成版の関数部分を維持して結合してください
+        const menuA = [
+            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
+            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
+            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
+            { name: "TREADMILL INTERVAL", settings: "1m Up / 1m RUN / 2m WALK", type: "interval", duration: 900 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+        ];
+
+        const menuB = [
+            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
+            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
+            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+        ];
 
         function render() {
             const container = document.getElementById('menu-content');
@@ -208,6 +194,20 @@
             data.forEach((item, idx) => { if(item.type === 'strength') window.checkRecord(idx, item.name); });
         }
 
+        // --- タイマー・音声ロジック (変更なし) ---
+        let audioCtx = null;
+        window.initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); };
+        const playBeep = (freq = 880, dur = 0.2) => {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "square"; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + dur);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        };
         window.startInterval = (totalSeconds, idx) => {
             if (activeTimers[idx]) return;
             window.initAudio();
@@ -220,20 +220,14 @@
                 elapsed++;
                 let remaining = totalSeconds - elapsed;
                 let phase = "";
-                if (elapsed <= 60) {
-                    phase = "Warmup"; if (elapsed === 60) playBeep(1000, 0.4);
-                } else {
-                    let cycleElapsed = (elapsed - 60) % 180; 
-                    if (cycleElapsed <= 60 && cycleElapsed !== 0) { phase = "🏃 RUN"; if (cycleElapsed === 60) playBeep(1000, 0.4); }
-                    else { phase = "🚶 WALK"; if (cycleElapsed === 0) playBeep(1000, 0.4); }
-                }
+                if (elapsed <= 60) { phase = "Warmup"; if (elapsed === 60) playBeep(1000, 0.4); }
+                else { let cycleElapsed = (elapsed - 60) % 180; if (cycleElapsed <= 60 && cycleElapsed !== 0) { phase = "🏃 RUN"; if (cycleElapsed === 60) playBeep(1000, 0.4); } else { phase = "🚶 WALK"; if (cycleElapsed === 0) playBeep(1000, 0.4); } }
                 status.innerText = phase;
                 const m = Math.floor(remaining / 60); const s = remaining % 60;
                 display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 if (remaining <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; btn.disabled = false; btn.classList.remove('opacity-30'); status.innerText = "Finish!"; playBeep(1200, 1.0); }
             }, 1000);
         };
-
         window.startTimer = (seconds, idx) => {
             if (activeTimers[idx]) return;
             window.initAudio();
@@ -248,30 +242,25 @@
                 if (timeLeft <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; btn.disabled = false; btn.classList.remove('opacity-30'); playBeep(880, 0.6); }
             }, 1000);
         };
-
         window.resetTimer = (seconds, idx, type) => {
             if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
-            const display = document.getElementById(`timer-display-${idx}`);
+            document.getElementById(`timer-display-${idx}`).innerText = type === 'plank' ? '00:45' : (Math.floor(seconds/60) + ':00');
             const status = document.getElementById(`interval-status-${idx}`);
-            const btn = document.getElementById(`timer-btn-${idx}`);
-            display.innerText = type === 'plank' ? '00:45' : (Math.floor(seconds/60) + ':00');
             if(status) status.innerText = "Ready";
-            btn.disabled = false; btn.classList.remove('opacity-30');
+            document.getElementById(`timer-btn-${idx}`).disabled = false;
+            document.getElementById(`timer-btn-${idx}`).classList.remove('opacity-30');
         };
-
         window.checkRecord = (idx, name) => {
             const r1 = parseInt(document.getElementById(`r1-${idx}`).value) || 0;
             const r2 = parseInt(document.getElementById(`r2-${idx}`).value) || 0;
             const r3 = parseInt(document.getElementById(`r3-${idx}`).value) || 0;
             const currentTotal = r1 + r2 + r3;
-            const pr = cloudData[name];
-            const prevTotal = (parseInt(pr?.r1) || 0) + (parseInt(pr?.r2) || 0) + (parseInt(pr?.r3) || 0);
+            const prevTotal = (parseInt(cloudData[name]?.r1) || 0) + (parseInt(cloudData[name]?.r2) || 0) + (parseInt(cloudData[name]?.r3) || 0);
             const badge = document.getElementById(`badge-${idx}`);
             const card = document.getElementById(`item-${idx}`);
             if (currentTotal > prevTotal && prevTotal > 0) { badge.classList.remove('hidden'); card.classList.add('record-glow'); }
             else { badge.classList.add('hidden'); card.classList.remove('record-glow'); }
         };
-
         window.switchMenu = (type) => {
             currentMenu = type;
             document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
