@@ -8,23 +8,27 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; }
+        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; color: #f8fafc; }
         .hidden { display: none !important; }
-        #login-overlay { position: fixed; inset: 0; z-index: 100; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #login-overlay { position: fixed; inset: 0; z-index: 100; background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; items-center justify-center; }
         .done { opacity: 0.15; filter: grayscale(1); }
         .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
     </style>
 </head>
-<body class="min-h-screen pb-10 text-slate-200">
+<body>
 
-    <div id="login-overlay">
-        <h1 class="text-4xl font-black mb-2 text-white">GymFlow Pro</h1>
-        <p class="text-slate-400 text-sm mb-12 uppercase tracking-widest">Cloud Sync Active</p>
+    <div id="loading-overlay">
+        <div class="text-blue-500 font-bold animate-pulse text-sm tracking-widest uppercase">Checking Access...</div>
+    </div>
+
+    <div id="login-overlay" class="hidden">
+        <h1 class="text-4xl font-black mb-2 text-white italic tracking-tighter">GymFlow Pro</h1>
+        <p class="text-slate-400 text-[10px] mb-12 uppercase tracking-[0.3em]">Cloud Sync Enabled</p>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
         </button>
-        <div id="status-msg" class="mt-4 text-[10px] text-slate-500"></div>
     </div>
 
     <div id="app-content" class="hidden">
@@ -43,7 +47,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getAuth, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getAuth, signInWithPopup, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -60,42 +64,32 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        const statusMsg = document.getElementById('status-msg');
-
-        // ログインボタン
+        // ポップアップログイン（ウイスキーアプリで成功した方式）
         document.getElementById('login-btn').onclick = async () => {
-            statusMsg.innerText = "Redirecting to Google...";
-            await setPersistence(auth, browserLocalPersistence);
-            signInWithRedirect(auth, provider);
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Login Error:", error);
+                alert("ログインに失敗しました。iPhoneの『サイト越えトラッキングを防ぐ』がONの場合、オフにして試してください。");
+            }
         };
 
-        // 認証処理の本体
-        async function handleAuth() {
-            try {
-                // iPhoneの戻り値待ちを確実にする
-                const result = await getRedirectResult(auth);
-                if (result) {
-                    statusMsg.innerText = "Login Successful!";
-                }
-            } catch (error) {
-                console.error(error);
-                statusMsg.innerText = "Error: " + error.code;
+        // 状態監視
+        onAuthStateChanged(auth, async (user) => {
+            document.getElementById('loading-overlay').classList.add('hidden');
+            if (user) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                document.getElementById('user-name').innerText = user.displayName;
+                loadData(user.uid);
+            } else {
+                document.getElementById('login-overlay').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
             }
+        });
 
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    document.getElementById('login-overlay').classList.add('hidden');
-                    document.getElementById('app-content').classList.remove('hidden');
-                    document.getElementById('user-name').innerText = user.displayName;
-                    loadData(user.uid);
-                } else {
-                    document.getElementById('login-overlay').classList.remove('hidden');
-                    document.getElementById('app-content').classList.add('hidden');
-                }
-            });
-        }
-
-        // --- 以前の筋トレロジックをそのまま移植 ---
+        // --- 筋トレロジック (省略せず維持) ---
         let cloudData = {};
         let currentMenu = 'A';
         const menuA = [
@@ -150,8 +144,6 @@
 
         document.getElementById('tabA').onclick = () => { currentMenu = 'A'; render(); };
         document.getElementById('tabB').onclick = () => { currentMenu = 'B'; render(); };
-
-        handleAuth();
     </script>
 </body>
 </html>
