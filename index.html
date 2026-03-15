@@ -8,36 +8,44 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; color: #f8fafc; overflow-x: hidden; font-family: sans-serif; }
         .hidden { display: none !important; }
         #login-overlay { position: fixed; inset: 0; z-index: 100; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; align-items: center; justify-content: center; }
-        .done { opacity: 0.15; filter: grayscale(1); }
-        .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
+        .done { opacity: 0.3; filter: grayscale(0.5); border-color: #1e293b !important; }
+        .active-tab { color: #3b82f6; border-bottom: 4px solid #3b82f6; }
+        .new-record-glow { border: 2px solid #fbbf24 !important; box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); animation: pulse-gold 2s infinite; }
+        @keyframes pulse-gold { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
+        #praise-popup { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 300; pointer-events: none; transition: all 0.5s ease; opacity: 0; }
+        .show-praise { opacity: 1 !important; transform: translate(-50%, -20px) !important; }
     </style>
 </head>
-<body class="min-h-screen pb-10">
+<body class="min-h-screen pb-20">
 
     <div id="loading-overlay">
-        <div class="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase">Loading...</div>
+        <div class="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase">Syncing...</div>
     </div>
 
     <div id="login-overlay" class="hidden">
-        <h1 class="text-4xl font-black mb-12 text-white italic tracking-tighter text-center">GymFlow<br>Pro</h1>
+        <h1 class="text-5xl font-black mb-12 text-white italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
         </button>
     </div>
 
+    <div id="praise-popup" class="bg-blue-600 text-white px-8 py-4 rounded-full font-black text-lg shadow-2xl border-2 border-white whitespace-nowrap">
+        GREAT JOB! 🔥
+    </div>
+
     <div id="app-content" class="hidden">
-        <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 pt-12 pb-2 border-b border-slate-700">
+        <nav class="bg-slate-900/90 backdrop-blur-xl sticky top-0 z-10 pt-12 pb-2 border-b border-slate-700">
             <div class="flex justify-around text-center font-bold">
-                <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-xs">Menu A</button>
-                <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
+                <button id="tabA" class="flex-1 py-4 active-tab transition-all uppercase tracking-[0.2em] text-sm">Menu A</button>
+                <button id="tabB" class="flex-1 py-4 text-slate-500 transition-all uppercase tracking-[0.2em] text-sm">Menu B</button>
             </div>
         </nav>
-        <main class="p-4 space-y-5" id="menu-content"></main>
+        <main class="p-4 space-y-6" id="menu-content"></main>
     </div>
 
     <script type="module">
@@ -63,6 +71,8 @@
         let cloudData = {};
         let currentMenu = 'A';
         let activeTimers = {};
+
+        const praises = ["限界突破！🔥", "成長が止まりませんね！✨", "最高にキレてます！💪", "過去の自分を超えましたね！", "ナイスバルク！👍"];
 
         document.getElementById('login-btn').onclick = async () => {
             try {
@@ -91,31 +101,50 @@
             render();
         }
 
-        window.autoSave = async () => {
+        window.showPraise = () => {
+            const popup = document.getElementById('praise-popup');
+            popup.innerText = praises[Math.floor(Math.random() * praises.length)];
+            popup.classList.add('show-praise');
+            setTimeout(() => popup.classList.remove('show-praise'), 2500);
+        };
+
+        window.autoSave = async (isCheck = false) => {
             if (!currentUser) return;
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
+            let hasRecordUpdate = false;
+
             data.forEach((item, idx) => {
                 const c = document.getElementById(`check-${idx}`);
                 if (item.type === 'strength') {
-                    const w = document.getElementById(`weight-${idx}`);
-                    const r1 = document.getElementById(`r1-${idx}`);
-                    const r2 = document.getElementById(`r2-${idx}`);
-                    const r3 = document.getElementById(`r3-${idx}`);
-                    if(w) updates[item.name] = { weight: w.value, r1: r1.value, r2: r2.value, r3: r3.value, done: c.checked };
+                    const w = document.getElementById(`weight-${idx}`).value;
+                    const r1 = document.getElementById(`r1-${idx}`).value;
+                    const r2 = document.getElementById(`r2-${idx}`).value;
+                    const r3 = document.getElementById(`r3-${idx}`).value;
+                    
+                    // 記録更新チェック
+                    const prev = cloudData[item.name] || {};
+                    const total = Number(r1) + Number(r2) + Number(r3);
+                    const prevTotal = Number(prev.r1||0) + Number(prev.r2||0) + Number(prev.r3||0);
+                    
+                    if (isCheck && c.checked && (Number(w) > Number(prev.weight||0) || total > prevTotal)) {
+                        hasRecordUpdate = true;
+                    }
+
+                    updates[item.name] = { weight: w, r1: r1, r2: r2, r3: r3, done: c.checked };
                 } else {
                     if(c) updates[item.name] = { ...cloudData[item.name], done: c.checked };
                 }
             });
-            await setDoc(doc(db, "users", currentUser.uid), updates);
+
+            if (hasRecordUpdate) window.showPraise();
+            await setDoc(doc(doc(db, "users", currentUser.uid)), updates);
             cloudData = updates;
         };
 
-        // 次の入力欄へ移動 & タップ時に全選択
         window.handleInput = (el, nextId) => {
             if (el.value.length >= 2 && nextId) {
-                const nextEl = document.getElementById(nextId);
-                if (nextEl) nextEl.focus();
+                document.getElementById(nextId).focus();
             }
             window.autoSave();
         };
@@ -145,56 +174,51 @@
             }, 1000);
         };
 
-        window.resetTimer = (seconds, idx) => {
-            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
-            document.getElementById(`timer-display-${idx}`).innerText = `00:${seconds}`;
-        };
-
         function render() {
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
-            container.innerHTML = data.map((item, idx) => `
-                <section class="bg-slate-800/40 p-5 rounded-[1.5rem] border border-slate-700 shadow-lg ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h2 class="font-black text-white text-base uppercase">${item.name}</h2>
-                            <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1">⚙️ ${item.settings}</p>
+            container.innerHTML = data.map((item, idx) => {
+                const prev = cloudData[item.name] || {};
+                const isWeightUp = Number(prev.weight) > 0 && Number(prev.weight) > Number(prev.prevWeight || 0); // ここは簡易化
+                
+                return `
+                <section class="bg-slate-800/60 p-6 rounded-[2rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="flex-1">
+                            <h2 class="font-black text-white text-2xl tracking-tighter uppercase leading-tight">${item.name}</h2>
+                            <p class="text-emerald-400 text-xs font-bold uppercase tracking-[0.1em] mt-1 opacity-80">⚙️ ${item.settings}</p>
                         </div>
-                        <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500" ${cloudData[item.name]?.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
+                        <input type="checkbox" id="check-${idx}" class="w-10 h-10 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
                     </div>
                     ${item.type === 'strength' ? `
                         <div class="space-y-4">
-                            <div class="flex items-center bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
-                                <span class="text-[9px] text-slate-500 font-black w-10 text-center">KG</span>
-                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
-                                <span class="w-10"></span>
+                            <div class="relative flex items-center bg-slate-900/80 p-4 rounded-2xl border border-slate-600 focus-within:border-blue-500 transition-all">
+                                <span class="text-xs text-slate-500 font-black w-12 uppercase">Weight</span>
+                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-3xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
+                                <span class="text-sm text-slate-500 font-black w-12 text-right">KG</span>
                             </div>
-                            <div class="flex justify-between gap-2">
-                                <input type="number" inputmode="numeric" placeholder="R1" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onfocus="this.select()" oninput="window.handleInput(this, 'r2-${idx}')">
-                                <input type="number" inputmode="numeric" placeholder="R2" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onfocus="this.select()" oninput="window.handleInput(this, 'r3-${idx}')">
-                                <input type="number" inputmode="numeric" placeholder="R3" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onfocus="this.select()" oninput="window.handleInput(this, null)">
+                            <div class="flex justify-between gap-3">
+                                ${[1,2,3].map(n => `
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-4 rounded-xl text-2xl font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
-                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
-                            <div class="flex justify-between items-center mb-2 px-1">
-                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Countdown</span>
-                                <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="window.startTimer(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest active:bg-blue-400">Start</button>
-                                <button onclick="window.resetTimer(${item.duration}, ${idx})" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest">Reset</button>
+                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-600">
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="font-mono text-4xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
+                                <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-8 py-3 rounded-xl uppercase text-sm shadow-lg active:scale-95 transition-all">Start</button>
                             </div>
                         </div>
                     ` : '')}
                 </section>
-            `).join('');
+            `}).join('');
         }
 
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-4 active-tab' : 'flex-1 py-4 text-slate-500';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 py-4 active-tab' : 'flex-1 py-4 text-slate-500';
             render();
         };
 
