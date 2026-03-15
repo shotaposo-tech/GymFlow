@@ -12,10 +12,10 @@
         .hidden { display: none !important; }
         #login-overlay { position: fixed; inset: 0; z-index: 100; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; align-items: center; justify-content: center; }
-        .done { opacity: 0.3; filter: grayscale(0.5); border-color: #1e293b !important; }
+        .done { opacity: 0.3; filter: grayscale(0.8); border-color: #1e293b !important; }
         .active-tab { color: #3b82f6; border-bottom: 4px solid #3b82f6; }
         
-        /* 巨大褒め言葉アニメーション */
+        /* 巨大赤エフェクト */
         #praise-overlay {
             position: fixed;
             inset: 0;
@@ -25,27 +25,32 @@
             z-index: 500;
             pointer-events: none;
             opacity: 0;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            transform: scale(0.5);
+            transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+            transform: scale(2) rotate(-5deg);
         }
         #praise-overlay.show {
             opacity: 1;
-            transform: scale(1);
+            transform: scale(1) rotate(0deg);
+            animation: shake 0.5s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
         }
         .praise-text {
-            background: linear-gradient(to right, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 3.5rem;
+            color: #ff0000;
+            font-size: 5rem;
             font-weight: 900;
             text-align: center;
-            line-height: 1.2;
-            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
-            padding: 20px;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,0,0,0.4);
+            letter-spacing: -0.05em;
+            font-style: italic;
         }
     </style>
 </head>
-<body class="min-h-screen pb-20">
+<body class="min-h-screen pb-24">
 
     <div id="loading-overlay">
         <div class="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase">Syncing...</div>
@@ -64,10 +69,11 @@
     </div>
 
     <div id="app-content" class="hidden">
-        <nav class="bg-slate-900/90 backdrop-blur-xl sticky top-0 z-10 pt-12 pb-2 border-b border-slate-700">
-            <div class="flex justify-around text-center font-bold">
-                <button id="tabA" class="flex-1 py-4 active-tab transition-all uppercase tracking-[0.2em] text-sm">Menu A</button>
-                <button id="tabB" class="flex-1 py-4 text-slate-500 transition-all uppercase tracking-[0.2em] text-sm">Menu B</button>
+        <nav class="bg-slate-900/95 backdrop-blur-xl sticky top-0 z-10 pt-12 pb-1 border-b border-slate-700">
+            <div class="flex justify-around items-end font-bold px-4">
+                <button id="tabA" class="flex-1 py-4 active-tab transition-all uppercase tracking-widest text-xs">Menu A</button>
+                <button id="tabB" class="flex-1 py-4 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
+                <button onclick="window.resetChecks()" class="ml-4 mb-4 bg-slate-800 text-slate-400 text-[10px] px-3 py-1 rounded-full border border-slate-600 active:bg-red-900 active:text-white transition-all">Reset All</button>
             </div>
         </nav>
         <main class="p-4 space-y-6" id="menu-content"></main>
@@ -97,7 +103,7 @@
         let currentMenu = 'A';
         let activeTimers = {};
 
-        const praises = ["限界突破！", "ナイスバルク！", "キレてる！", "最高です！", "新記録！", "成長の塊！"];
+        const praises = ["限界突破！", "新記録！", "覚醒！", "ヤバすぎる！", "最強！", "OVER LIMIT!"];
 
         document.getElementById('login-btn').onclick = async () => {
             try {
@@ -131,13 +137,13 @@
             const target = document.getElementById('praise-target');
             target.innerText = praises[Math.floor(Math.random() * praises.length)];
             overlay.classList.add('show');
-            setTimeout(() => overlay.classList.remove('show'), 2000);
+            setTimeout(() => overlay.classList.remove('show'), 1500);
         };
 
         window.autoSave = async (isCheck = false) => {
             if (!currentUser) return;
-            const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
+            const data = currentMenu === 'A' ? menuA : menuB;
             let hasRecordUpdate = false;
 
             data.forEach((item, idx) => {
@@ -164,6 +170,13 @@
             if (hasRecordUpdate) window.showPraise();
             await setDoc(doc(db, "users", currentUser.uid), updates);
             cloudData = updates;
+        };
+
+        window.resetChecks = async () => {
+            if (!confirm("全てのチェックを外しますか？（数値は残ります）")) return;
+            Object.keys(cloudData).forEach(key => cloudData[key].done = false);
+            await setDoc(doc(db, "users", currentUser.uid), cloudData);
+            render();
         };
 
         window.handleInput = (el, nextId) => {
@@ -202,30 +215,30 @@
             container.innerHTML = data.map((item, idx) => {
                 const prev = cloudData[item.name] || {};
                 return `
-                <section class="bg-slate-800/60 p-6 rounded-[2.5rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-6 px-1">
+                <section class="bg-slate-800/60 p-5 rounded-[2rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-5">
                         <div class="flex-1">
-                            <h2 class="font-black text-white text-[1.75rem] tracking-tighter uppercase leading-none">${item.name}</h2>
-                            <p class="text-emerald-400 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">${item.settings}</p>
+                            <h2 class="font-black text-white text-xl tracking-tight uppercase leading-tight">${item.name}</h2>
+                            <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">${item.settings}</p>
                         </div>
-                        <input type="checkbox" id="check-${idx}" class="w-10 h-10 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
+                        <input type="checkbox" id="check-${idx}" class="w-9 h-9 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
                     </div>
                     ${item.type === 'strength' ? `
-                        <div class="space-y-4">
-                            <div class="flex items-center bg-slate-900/80 p-5 rounded-2xl border border-slate-600">
-                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-4xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
-                                <span class="absolute right-12 text-xs text-slate-500 font-black uppercase">KG</span>
+                        <div class="space-y-3">
+                            <div class="flex items-center bg-slate-900/80 p-3 rounded-xl border border-slate-600">
+                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-2xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
+                                <span class="absolute right-12 text-[9px] text-slate-500 font-black uppercase">KG</span>
                             </div>
-                            <div class="flex justify-between gap-3">
+                            <div class="flex justify-between gap-2">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-5 rounded-xl text-2xl font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-3 rounded-xl text-xl font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
                                 `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
-                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-600 flex justify-between items-center">
-                            <span class="font-mono text-4xl font-black text-blue-400 px-2" id="timer-display-${idx}">00:${item.duration}</span>
-                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-10 py-4 rounded-xl uppercase text-sm shadow-lg active:scale-95 transition-all">Start</button>
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-600 flex justify-between items-center">
+                            <span class="font-mono text-3xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-8 py-3 rounded-lg uppercase text-[10px] shadow-lg active:scale-95 transition-all">Start</button>
                         </div>
                     ` : '')}
                 </section>
