@@ -8,23 +8,25 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; background: #0f172a; color: #f8fafc; }
+        body { -webkit-touch-callout: none; -webkit-user-select: none; background: radial-gradient(circle at top, #1e293b, #0f172a); color: #f8fafc; overflow-x: hidden; }
         .hidden { display: none !important; }
         #login-overlay { position: fixed; inset: 0; z-index: 100; background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #loading-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172a; display: flex; items-center justify-center; }
         .done { opacity: 0.15; filter: grayscale(1); }
         .active-tab { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
+        .record-glow { animation: glow-pulse 2s infinite; border-color: #3b82f6; }
+        @keyframes glow-pulse { 0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); } 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); } }
     </style>
 </head>
-<body>
+<body class="min-h-screen pb-10" onclick="initAudio()">
 
     <div id="loading-overlay">
-        <div class="text-blue-500 font-bold animate-pulse text-sm tracking-widest uppercase">Checking Access...</div>
+        <div class="text-blue-500 font-bold animate-pulse text-sm tracking-widest uppercase">Syncing Cloud...</div>
     </div>
 
     <div id="login-overlay" class="hidden">
         <h1 class="text-4xl font-black mb-2 text-white italic tracking-tighter">GymFlow Pro</h1>
-        <p class="text-slate-400 text-[10px] mb-12 uppercase tracking-[0.3em]">Cloud Sync Enabled</p>
+        <p class="text-slate-400 text-[10px] mb-12 uppercase tracking-[0.3em]">Precision Training Log</p>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 shadow-2xl active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
@@ -38,8 +40,8 @@
                 <span id="save-status" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">● Cloud Synced</span>
             </div>
             <div class="flex justify-around text-center font-bold">
-                <button id="tabA" class="flex-1 py-3 active-tab text-xs">Menu A</button>
-                <button id="tabB" class="flex-1 py-3 text-slate-500 text-xs">Menu B</button>
+                <button id="tabA" class="flex-1 py-3 active-tab transition-all uppercase tracking-widest text-xs">Menu A</button>
+                <button id="tabB" class="flex-1 py-3 text-slate-500 transition-all uppercase tracking-widest text-xs">Menu B</button>
             </div>
         </nav>
         <main class="p-4 space-y-5" id="menu-content"></main>
@@ -64,86 +66,175 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        // ポップアップログイン（ウイスキーアプリで成功した方式）
+        let currentUser = null;
+        let cloudData = {};
+        let activeTimers = {};
+        let currentMenu = 'A';
+
+        // ログイン処理
         document.getElementById('login-btn').onclick = async () => {
             try {
                 await setPersistence(auth, browserLocalPersistence);
                 await signInWithPopup(auth, provider);
             } catch (error) {
-                console.error("Login Error:", error);
-                alert("ログインに失敗しました。iPhoneの『サイト越えトラッキングを防ぐ』がONの場合、オフにして試してください。");
+                alert("Login failed. Please check Safari settings.");
             }
         };
 
-        // 状態監視
         onAuthStateChanged(auth, async (user) => {
             document.getElementById('loading-overlay').classList.add('hidden');
             if (user) {
+                currentUser = user;
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
                 document.getElementById('user-name').innerText = user.displayName;
-                loadData(user.uid);
+                await loadData();
             } else {
                 document.getElementById('login-overlay').classList.remove('hidden');
                 document.getElementById('app-content').classList.add('hidden');
             }
         });
 
-        // --- 筋トレロジック (省略せず維持) ---
-        let cloudData = {};
-        let currentMenu = 'A';
-        const menuA = [
-            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
-            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
-            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" }
-        ];
-        const menuB = [
-            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
-            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" }
-        ];
-
-        async function loadData(uid) {
-            const docSnap = await getDoc(doc(db, "users", uid));
+        // --- データ処理 ---
+        async function loadData() {
+            if (!currentUser) return;
+            const docSnap = await getDoc(doc(db, "users", currentUser.uid));
             if (docSnap.exists()) cloudData = docSnap.data();
             render();
         }
 
         window.autoSave = async () => {
-            const user = auth.currentUser;
-            if (!user) return;
-            document.getElementById('save-status').innerText = "● Syncing...";
+            if (!currentUser) return;
+            const statusEl = document.getElementById('save-status');
+            statusEl.innerText = "● Syncing...";
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = { ...cloudData };
             data.forEach((item, idx) => {
-                const w = document.getElementById(`weight-${idx}`);
-                const r1 = document.getElementById(`r1-${idx}`);
-                const c = document.getElementById(`check-${idx}`);
-                if(w) updates[item.name] = { weight: w.value, r1: r1.value, done: c.checked };
+                if(item.type === 'strength') {
+                    const w = document.getElementById(`weight-${idx}`);
+                    const r1 = document.getElementById(`r1-${idx}`);
+                    const r2 = document.getElementById(`r2-${idx}`);
+                    const r3 = document.getElementById(`r3-${idx}`);
+                    const c = document.getElementById(`check-${idx}`);
+                    if(w) updates[item.name] = { weight: w.value, r1: r1.value, r2: r2.value, r3: r3.value, done: c.checked };
+                }
             });
-            await setDoc(doc(db, "users", user.uid), updates);
+            await setDoc(doc(db, "users", currentUser.uid), updates);
             cloudData = updates;
-            document.getElementById('save-status').innerText = "● Cloud Synced";
+            statusEl.innerText = "● Cloud Synced";
         };
 
+        // --- メニュー構成 ---
+        const menuA = [
+            { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
+            { name: "LAT PULLDOWN", settings: "Standard", type: "strength" },
+            { name: "ABDOMINAL CRUNCH", settings: "Seat:5", type: "strength" },
+            { name: "TREADMILL INTERVAL", settings: "1m Up / 1m RUN / 2m WALK", type: "interval", duration: 900 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+        ];
+        const menuB = [
+            { name: "LEG PRESS", settings: "Seat:2", type: "strength" },
+            { name: "LEG EXTENSION", settings: "Seat:4 / Range:11 / Ankle:L", type: "strength" },
+            { name: "TREADMILL WALKING", settings: "20min Constant", type: "timer", duration: 1200 },
+            { name: "PLANK", settings: "45s x 2sets", type: "plank", duration: 45 }
+        ];
+
+        // --- UIレンダリング ---
         function render() {
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
             container.innerHTML = data.map((item, idx) => `
-                <section class="bg-slate-800/40 p-5 rounded-3xl border border-slate-700 ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
+                <section class="bg-slate-800/40 p-5 rounded-[1.5rem] border border-slate-700 shadow-lg relative ${cloudData[item.name]?.done ? 'done' : ''}" id="item-${idx}">
                     <div class="flex justify-between items-start mb-4">
-                        <h2 class="font-black text-white uppercase">${item.name}</h2>
-                        <input type="checkbox" id="check-${idx}" class="w-7 h-7" ${cloudData[item.name]?.done ? 'checked' : ''} onchange="window.autoSave()">
+                        <div>
+                            <h2 class="font-black text-white text-base tracking-tight leading-tight uppercase">${item.name}</h2>
+                            <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1">⚙️ ${item.settings}</p>
+                        </div>
+                        <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-slate-600 bg-slate-700 checked:bg-blue-500" ${cloudData[item.name]?.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
                     </div>
-                    <div class="flex gap-2">
-                        <input type="number" placeholder="KG" class="w-full bg-slate-900 p-3 rounded-xl text-blue-400 font-black text-center" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()">
-                        <input type="number" placeholder="Reps" class="w-full bg-slate-900 p-3 rounded-xl text-white font-black text-center" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
-                    </div>
+                    ${item.type === 'strength' ? `
+                        <div class="space-y-4">
+                            <div class="flex items-center bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                                <span class="text-[9px] text-slate-500 font-black w-10 text-center">KG</span>
+                                <input type="number" inputmode="decimal" class="flex-1 bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${cloudData[item.name]?.weight || ''}" onblur="window.autoSave()">
+                                <span class="w-10"></span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r1-${idx}" value="${cloudData[item.name]?.r1 || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r2-${idx}" value="${cloudData[item.name]?.r2 || ''}" onblur="window.autoSave()">
+                                <input type="number" inputmode="numeric" placeholder="-" class="w-full bg-slate-900/60 p-2 rounded-lg text-lg font-black text-white text-center border border-slate-700/50 outline-none" id="r3-${idx}" value="${cloudData[item.name]?.r3 || ''}" onblur="window.autoSave()">
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                            <div class="flex justify-between items-center mb-2 px-1">
+                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest" id="interval-status-${idx}">Ready</span>
+                                <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">${item.type === 'plank' ? '00:45' : (Math.floor(item.duration/60) + ':00')}</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="timer-btn-${idx}" onclick="window.${item.type === 'interval' ? 'startInterval' : 'startTimer'}(${item.duration}, ${idx})" class="flex-1 bg-blue-600 text-[10px] font-black py-3 rounded-lg uppercase tracking-widest shadow-md">Start</button>
+                                <button onclick="window.resetTimer(${item.duration}, ${idx}, '${item.type}')" class="bg-slate-700 text-[10px] font-black px-4 py-3 rounded-lg uppercase tracking-widest">Reset</button>
+                            </div>
+                        </div>
+                    `}
                 </section>
             `).join('');
         }
 
-        document.getElementById('tabA').onclick = () => { currentMenu = 'A'; render(); };
-        document.getElementById('tabB').onclick = () => { currentMenu = 'B'; render(); };
+        // --- 音声・タイマー制御 ---
+        let audioCtx = null;
+        window.initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+        const playBeep = (freq = 880, dur = 0.2) => {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        };
+
+        window.startInterval = (totalSeconds, idx) => {
+            if (activeTimers[idx]) return;
+            let elapsed = 0;
+            const display = document.getElementById(`timer-display-${idx}`);
+            const status = document.getElementById(`interval-status-${idx}`);
+            activeTimers[idx] = setInterval(() => {
+                elapsed++;
+                let remaining = totalSeconds - elapsed;
+                let phase = elapsed <= 60 ? "Warmup" : ((elapsed - 60) % 180 <= 60 ? "🏃 RUN" : "🚶 WALK");
+                if (elapsed % 60 === 0) playBeep(1000, 0.5);
+                status.innerText = phase;
+                display.innerText = `${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
+                if (remaining <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; playBeep(1200, 1); }
+            }, 1000);
+        };
+
+        window.startTimer = (seconds, idx) => {
+            if (activeTimers[idx]) return;
+            let timeLeft = seconds;
+            const display = document.getElementById(`timer-display-${idx}`);
+            activeTimers[idx] = setInterval(() => {
+                timeLeft--;
+                display.innerText = `${String(Math.floor(timeLeft/60)).padStart(2,'0')}:${String(timeLeft%60).padStart(2,'0')}`;
+                if (timeLeft <= 0) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; playBeep(880, 0.8); }
+            }, 1000);
+        };
+
+        window.resetTimer = (seconds, idx, type) => {
+            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
+            document.getElementById(`timer-display-${idx}`).innerText = type === 'plank' ? '00:45' : (Math.floor(seconds/60) + ':00');
+        };
+
+        window.switchMenu = (type) => {
+            currentMenu = type;
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 py-3 active-tab' : 'flex-1 py-3 text-slate-500';
+            render();
+        };
+
+        document.getElementById('tabA').onclick = () => window.switchMenu('A');
+        document.getElementById('tabB').onclick = () => window.switchMenu('B');
     </script>
 </body>
 </html>
