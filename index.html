@@ -15,47 +15,17 @@
         .done { opacity: 0.3; filter: grayscale(0.8); border-color: #1e293b !important; }
         .active-tab { color: #3b82f6; border-bottom: 4px solid #3b82f6; }
         
-        /* 巨大赤エフェクト（限界突破） */
+        /* 巨大赤エフェクト */
         #praise-overlay {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 500;
-            pointer-events: none;
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+            position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 500;
+            pointer-events: none; opacity: 0; transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
             transform: scale(2) rotate(-5deg);
         }
-        #praise-overlay.show {
-            opacity: 1;
-            transform: scale(1) rotate(0deg);
-            animation: shake 0.5s ease-in-out;
-        }
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
-        }
-        .praise-text {
-            color: #ff0000;
-            font-size: 5rem;
-            font-weight: 900;
-            text-align: center;
-            line-height: 1;
-            text-shadow: 0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,0,0,0.4);
-            letter-spacing: -0.05em;
-            font-style: italic;
-        }
+        #praise-overlay.show { opacity: 1; transform: scale(1) rotate(0deg); animation: shake 0.5s ease-in-out; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+        .praise-text { color: #ff0000; font-size: 5rem; font-weight: 900; text-align: center; line-height: 1; text-shadow: 0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,0,0,0.4); letter-spacing: -0.05em; font-style: italic; }
 
-        /* GYMFLOW ロゴスタイル */
-        .logo-font {
-            letter-spacing: 0.5em;
-            font-weight: 800;
-            font-style: italic;
-            text-indent: 0.5em; /* 文字を中央に寄せるための調整 */
-        }
+        .logo-font { letter-spacing: 0.2em; font-weight: 900; font-style: italic; text-indent: 0.2em; }
     </style>
 </head>
 <body class="min-h-screen pb-24">
@@ -65,7 +35,7 @@
     </div>
 
     <div id="login-overlay" class="hidden">
-        <h1 class="text-5xl font-black mb-12 text-white italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
+        <h1 class="text-6xl font-black mb-12 text-white italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
         <button id="login-btn" class="bg-white text-slate-900 font-bold py-4 px-10 rounded-2xl flex items-center gap-3 active:scale-95 transition-all">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
@@ -77,18 +47,18 @@
     </div>
 
     <div id="app-content" class="hidden">
-        <header class="bg-slate-900/95 backdrop-blur-xl sticky top-0 z-10 pt-8 border-b border-slate-700">
-            <div class="text-center pb-4">
-                <span class="logo-font text-white text-xs uppercase">GymFlow</span>
+        <header class="bg-slate-900/95 backdrop-blur-xl sticky top-0 z-10 border-b border-slate-700">
+            <div class="text-center pt-4 pb-2">
+                <h1 class="logo-font text-white text-3xl uppercase">GymFlow</h1>
             </div>
-            <div class="flex justify-around items-center font-bold px-4 h-12">
-                <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]">Menu A</button>
-                <button id="tabB" class="flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[10px]">Menu B</button>
-                <button onclick="window.resetChecks()" class="ml-4 bg-slate-800 text-slate-400 text-[9px] px-3 py-1.5 rounded-full border border-slate-600 active:bg-red-900 active:text-white transition-all">Reset</button>
+            <div class="flex justify-around items-center font-bold px-4 h-10">
+                <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]">Menu A</button>
+                <button id="tabB" class="flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]">Menu B</button>
+                <button onclick="window.resetChecks()" class="ml-4 bg-slate-800 text-slate-400 text-[9px] px-3 py-1 rounded-full border border-slate-600 active:bg-red-900 active:text-white transition-all">Reset</button>
             </div>
         </header>
 
-        <main class="p-4 space-y-6" id="menu-content"></main>
+        <main class="p-4 space-y-4" id="menu-content"></main>
     </div>
 
     <script type="module">
@@ -121,7 +91,7 @@
             try {
                 await setPersistence(auth, browserLocalPersistence);
                 await signInWithPopup(auth, provider);
-            } catch (e) { alert("Login Error"); }
+            } catch (e) { alert("Login Error: " + e.message); }
         };
 
         onAuthStateChanged(auth, async (user) => {
@@ -160,6 +130,7 @@
 
             data.forEach((item, idx) => {
                 const c = document.getElementById(`check-${idx}`);
+                if (!c) return;
                 if (item.type === 'strength') {
                     const w = document.getElementById(`weight-${idx}`).value;
                     const r1 = document.getElementById(`r1-${idx}`).value;
@@ -175,7 +146,7 @@
                     }
                     updates[item.name] = { weight: w, r1: r1, r2: r2, r3: r3, done: c.checked };
                 } else {
-                    if(c) updates[item.name] = { ...cloudData[item.name], done: c.checked };
+                    updates[item.name] = { ...cloudData[item.name], done: c.checked };
                 }
             });
 
@@ -186,13 +157,16 @@
 
         window.resetChecks = async () => {
             if (!confirm("全てのチェックを外しますか？")) return;
-            Object.keys(cloudData).forEach(key => cloudData[key].done = false);
+            Object.keys(cloudData).forEach(key => { if(cloudData[key]) cloudData[key].done = false; });
             await setDoc(doc(db, "users", currentUser.uid), cloudData);
             render();
         };
 
         window.handleInput = (el, nextId) => {
-            if (el.value.length >= 2 && nextId) document.getElementById(nextId).focus();
+            if (el.value.length >= 2 && nextId) {
+                const nextEl = document.getElementById(nextId);
+                if(nextEl) nextEl.focus();
+            }
             window.autoSave();
         };
 
@@ -227,30 +201,30 @@
             container.innerHTML = data.map((item, idx) => {
                 const prev = cloudData[item.name] || {};
                 return `
-                <section class="bg-slate-800/60 p-5 rounded-[2rem] border-2 border-slate-700 shadow-2xl ${prev.done ? 'done' : ''}" id="item-${idx}">
-                    <div class="flex justify-between items-start mb-5">
+                <section class="bg-slate-800/60 p-4 rounded-[1.5rem] border border-slate-700 shadow-xl ${prev.done ? 'done' : ''}" id="item-${idx}">
+                    <div class="flex justify-between items-start mb-3">
                         <div class="flex-1">
-                            <h2 class="font-black text-white text-xl tracking-tight uppercase leading-tight">${item.name}</h2>
-                            <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">${item.settings}</p>
+                            <h2 class="font-black text-white text-lg tracking-tight uppercase leading-tight">${item.name}</h2>
+                            <p class="text-emerald-400 text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-70">${item.settings}</p>
                         </div>
-                        <input type="checkbox" id="check-${idx}" class="w-9 h-9 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
+                        <input type="checkbox" id="check-${idx}" class="w-8 h-8 rounded-full border-2 border-slate-600 bg-slate-700 checked:bg-blue-500 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave(true);">
                     </div>
                     ${item.type === 'strength' ? `
-                        <div class="space-y-3">
-                            <div class="flex items-center bg-slate-900/80 p-3 rounded-xl border border-slate-600 relative">
+                        <div class="space-y-2">
+                            <div class="flex items-center bg-slate-900/80 p-2 rounded-xl border border-slate-600 relative">
                                 <input type="number" inputmode="decimal" class="w-full bg-transparent text-xl font-black text-blue-400 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()" placeholder="0.0">
-                                <span class="absolute right-6 text-[9px] text-slate-500 font-black uppercase">KG</span>
+                                <span class="absolute right-4 text-[8px] text-slate-500 font-black uppercase">KG</span>
                             </div>
                             <div class="flex justify-between gap-2">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-3 rounded-xl text-lg font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-900/80 p-2.5 rounded-xl text-lg font-black text-white text-center border border-slate-600 outline-none focus:border-blue-500 transition-all" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onfocus="this.select()" oninput="window.handleInput(this, ${n<3 ? `'r${n+1}-${idx}'` : 'null'})">
                                 `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
-                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-600 flex justify-between items-center">
-                            <span class="font-mono text-3xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
-                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-8 py-3 rounded-lg uppercase text-[10px] shadow-lg active:scale-95 transition-all">Start</button>
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-600 flex justify-between items-center">
+                            <span class="font-mono text-2xl font-black text-blue-400" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button onclick="window.startTimer(${item.duration}, ${idx})" class="bg-blue-600 text-white font-black px-6 py-2 rounded-lg uppercase text-[9px] shadow-lg active:scale-95 transition-all">Start</button>
                         </div>
                     ` : '')}
                 </section>
@@ -259,8 +233,8 @@
 
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-500';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-500';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[11px]' : 'flex-1 h-full text-slate-500 transition-all uppercase tracking-widest text-[11px]';
             render();
         };
 
