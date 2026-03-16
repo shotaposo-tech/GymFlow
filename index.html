@@ -8,16 +8,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* ロゴの配色を反映したカスタムスタイル */
         body { 
             -webkit-touch-callout: none; -webkit-user-select: none; 
             background: #f1f5f9; color: #1e293b; 
-            overflow-x: hidden; font-family: 'Inter', sans-serif; 
+            overflow-x: hidden; font-family: sans-serif; 
         }
         .hidden { display: none !important; }
-        .done { opacity: 0.5; filter: grayscale(0.5); }
+        .done { opacity: 0.4; filter: grayscale(0.6); }
         
-        /* ロゴグラデーション */
+        /* ロゴの配色を再現したグラデーション */
         .bg-gradient-gym {
             background: linear-gradient(135deg, #f59e0b 0%, #d946ef 50%, #7c3aed 100%);
         }
@@ -26,32 +25,22 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .active-tab { color: #d946ef; border-bottom: 3px solid #d946ef; }
 
-        .active-tab { 
-            color: #d946ef; 
-            border-bottom: 3px solid #d946ef; 
-        }
-
-        /* チェックボックスのカスタム */
-        input[type="checkbox"]:checked {
-            background-color: #d946ef;
-            border-color: #d946ef;
-        }
-
-        .logo-font { letter-spacing: 0.1em; font-weight: 900; font-style: italic; }
+        .logo-font { letter-spacing: 0.15em; font-weight: 900; font-style: italic; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
 
     <div id="loading-overlay" class="fixed inset-0 z-50 bg-white flex items-center justify-center">
-        <div class="text-orange-500 font-bold animate-bounce text-sm tracking-widest uppercase">GymFlow Loading...</div>
+        <div class="text-orange-500 font-bold animate-pulse text-sm tracking-widest uppercase">GymFlow Loading...</div>
     </div>
 
     <div id="login-overlay" class="hidden fixed inset-0 z-40 bg-white flex flex-col items-center justify-center p-6">
-        <div class="w-32 h-32 mb-8 bg-gradient-gym rounded-full flex items-center justify-center shadow-2xl">
-            <span class="text-white text-4xl italic font-black">GF</span>
+        <div class="w-24 h-24 mb-6 bg-gradient-gym rounded-3xl flex items-center justify-center shadow-xl rotate-12">
+            <span class="text-white text-4xl italic font-black -rotate-12">GF</span>
         </div>
-        <h1 class="text-5xl font-black mb-12 text-slate-800 italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
+        <h1 class="text-5xl font-black mb-10 text-slate-800 italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
         <button id="login-btn" class="bg-slate-900 text-white font-bold py-4 px-10 rounded-2xl flex items-center gap-3 active:scale-95 transition-all shadow-lg">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
@@ -59,11 +48,11 @@
     </div>
 
     <div id="app-content" class="hidden">
-        <header class="bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200">
-            <div class="text-center pt-4 pb-2">
-                <h1 class="logo-font text-gradient-gym text-3xl uppercase">GymFlow</h1>
+        <header class="bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200 px-4">
+            <div class="text-center pt-4 pb-1">
+                <h1 class="logo-font text-gradient-gym text-2xl uppercase">GymFlow</h1>
             </div>
-            <div class="flex justify-around items-center font-bold px-4 h-10">
+            <div class="flex justify-around items-center font-bold h-10">
                 <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]">Menu A</button>
                 <button id="tabB" class="flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]">Menu B</button>
                 <button onclick="window.resetChecks()" class="ml-4 bg-slate-100 text-slate-500 text-[8px] px-3 py-1 rounded-full border border-slate-200 active:bg-red-50 transition-all">Reset</button>
@@ -145,16 +134,16 @@
             data.forEach((item, idx) => {
                 const c = document.getElementById(`check-${idx}`);
                 if (!c) return;
-                
-                // メニューごとに個別のキーを作る（例: MenuA_PLANK）
                 const storageKey = `${currentMenu}_${item.name}`;
                 
                 if (item.type === 'strength') {
-                    const w = document.getElementById(`weight-${idx}`).value;
-                    const r1 = document.getElementById(`r1-${idx}`).value;
-                    const r2 = document.getElementById(`r2-${idx}`).value;
-                    const r3 = document.getElementById(`r3-${idx}`).value;
-                    updates[storageKey] = { weight: w, r1: r1, r2: r2, r3: r3, done: c.checked };
+                    updates[storageKey] = {
+                        weight: document.getElementById(`weight-${idx}`).value,
+                        r1: document.getElementById(`r1-${idx}`).value,
+                        r2: document.getElementById(`r2-${idx}`).value,
+                        r3: document.getElementById(`r3-${idx}`).value,
+                        done: c.checked
+                    };
                 } else {
                     updates[storageKey] = { done: c.checked };
                 }
@@ -165,7 +154,7 @@
         };
 
         window.resetChecks = async () => {
-            if (!confirm("現在のメニューのチェックをリセットしますか？")) return;
+            if (!confirm("現在のメニューをリセットしますか？")) return;
             const data = currentMenu === 'A' ? menuA : menuB;
             data.forEach(item => {
                 const storageKey = `${currentMenu}_${item.name}`;
@@ -179,35 +168,35 @@
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
             container.innerHTML = data.map((item, idx) => {
-                // メニュー固有のキーでデータを取得
                 const storageKey = `${currentMenu}_${item.name}`;
-                const prev = cloudData[storageKey] || {};
+                // 【重要】新しいキーにデータがなければ、古いキー（共通データ）を見に行く
+                const prev = cloudData[storageKey] || cloudData[item.name] || {};
                 
                 return `
-                <section class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm ${prev.done ? 'done' : ''}" id="item-${idx}">
+                <section class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm ${prev.done ? 'done' : ''}" id="item-${idx}">
                     <div class="flex justify-between items-center mb-3">
                         <div class="flex-1">
-                            <h2 class="font-black text-slate-800 text-lg tracking-tight uppercase">${item.name}</h2>
-                            <p class="text-orange-500 text-[9px] font-bold uppercase tracking-widest">${item.settings}</p>
+                            <h2 class="font-black text-slate-800 text-base tracking-tight uppercase">${item.name}</h2>
+                            <p class="text-orange-500 text-[8px] font-bold uppercase tracking-widest">${item.settings}</p>
                         </div>
                         <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-2 border-slate-300 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
                     </div>
                     ${item.type === 'strength' ? `
                         <div class="flex gap-2">
                             <div class="w-1/3 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center relative">
-                                <input type="number" class="w-full bg-transparent text-xl font-black text-purple-600 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onblur="window.autoSave()">
-                                <span class="absolute right-2 text-[7px] text-slate-400 font-bold">KG</span>
+                                <input type="number" class="w-full bg-transparent text-lg font-black text-purple-600 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onblur="window.autoSave()">
+                                <span class="absolute right-2 text-[7px] text-slate-400 font-bold uppercase">KG</span>
                             </div>
                             <div class="w-2/3 flex gap-1">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" placeholder="R${n}" class="w-full bg-slate-50 p-2 rounded-xl text-lg font-black text-slate-700 text-center border border-slate-100 outline-none focus:border-orange-300" id="r${n}-${idx}" value="${prev['r'+n] || ''}" oninput="window.autoSave()">
+                                    <input type="number" placeholder="R${n}" class="w-full bg-slate-50 p-2 rounded-xl text-base font-black text-slate-700 text-center border border-slate-100 outline-none" id="r${n}-${idx}" value="${prev['r'+n] || ''}" onblur="window.autoSave()">
                                 `).join('')}
                             </div>
                         </div>
                     ` : (item.type === 'plank' ? `
                         <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4">
                             <span class="font-mono text-xl font-black text-purple-600">00:${item.duration}</span>
-                            <button class="bg-gradient-gym text-white font-black px-5 py-1.5 rounded-lg uppercase text-[9px] shadow-md">Start</button>
+                            <button class="bg-gradient-gym text-white font-black px-5 py-1.5 rounded-lg uppercase text-[9px] shadow-md active:scale-95">Start</button>
                         </div>
                     ` : '')}
                 </section>
@@ -216,8 +205,8 @@
 
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab transition-all' : 'flex-1 h-full text-slate-400 transition-all';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab transition-all' : 'flex-1 h-full text-slate-400 transition-all';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
             render();
         };
 
