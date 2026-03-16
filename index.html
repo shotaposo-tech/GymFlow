@@ -72,7 +72,8 @@
         let currentUser = null;
         let cloudData = {};
         let currentMenu = 'A';
-        let focusTimer = null; // 自動移動用のタイマー
+        let focusTimer = null;
+        let activeTimers = {}; // 各カードのタイマー状態を保持
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -139,21 +140,45 @@
             cloudData = updates;
         };
 
-        // 一桁でも次へ移動する処理（タイマー付き）
         window.handleMoveFocus = (el, nextId) => {
             if (focusTimer) clearTimeout(focusTimer);
-
             if (el.value.length > 0 && nextId) {
                 const nextEl = document.getElementById(nextId);
                 if (nextEl) {
-                    // 2桁入力されたら即移動、1桁なら1秒後に移動
                     const delay = el.value.length >= 2 ? 0 : 800; 
-                    focusTimer = setTimeout(() => {
-                        nextEl.focus();
-                    }, delay);
+                    focusTimer = setTimeout(() => { nextEl.focus(); }, delay);
                 }
             }
             window.autoSave();
+        };
+
+        // タイマー開始関数を復活
+        window.startTimer = (seconds, idx) => {
+            if (activeTimers[idx]) {
+                clearInterval(activeTimers[idx]);
+                delete activeTimers[idx];
+            }
+            
+            let timeLeft = seconds;
+            const display = document.getElementById(`timer-display-${idx}`);
+            const btn = document.getElementById(`timer-btn-${idx}`);
+            
+            btn.innerText = "Running";
+            btn.classList.add('opacity-50');
+
+            activeTimers[idx] = setInterval(() => {
+                timeLeft--;
+                display.innerText = `00:${String(timeLeft).padStart(2, '0')}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(activeTimers[idx]);
+                    delete activeTimers[idx];
+                    display.innerText = `00:00`;
+                    btn.innerText = "Finish!";
+                    btn.classList.remove('opacity-50');
+                    alert("タイマー終了！お疲れ様です！");
+                }
+            }, 1000);
         };
 
         window.resetChecks = async () => {
@@ -199,8 +224,8 @@
                         </div>
                     ` : (item.type === 'plank' ? `
                         <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4">
-                            <span class="font-mono text-xl font-black text-purple-600">00:${item.duration}</span>
-                            <button class="bg-gradient-gym text-white font-black px-5 py-1.5 rounded-lg uppercase text-[9px] shadow-md active:scale-95">Start</button>
+                            <span class="font-mono text-xl font-black text-purple-600" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-gradient-gym text-white font-black px-5 py-1.5 rounded-lg uppercase text-[9px] shadow-md active:scale-95 transition-all">Start</button>
                         </div>
                     ` : '')}
                 </section>
