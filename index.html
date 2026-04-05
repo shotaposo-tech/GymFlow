@@ -73,7 +73,7 @@
         let cloudData = {};
         let currentMenu = 'A';
         let focusTimer = null;
-        let activeTimers = {}; // 各カードのタイマー状態を保持
+        let activeTimers = {};
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -152,7 +152,6 @@
             window.autoSave();
         };
 
-        // タイマー開始関数を復活
         window.startTimer = (seconds, idx) => {
             if (activeTimers[idx]) {
                 clearInterval(activeTimers[idx]);
@@ -163,7 +162,8 @@
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
             
-            btn.innerText = "Running";
+            // RUNNING から HOLDING に変更
+            btn.innerText = "HOLDING";
             btn.classList.add('opacity-50');
 
             activeTimers[idx] = setInterval(() => {
