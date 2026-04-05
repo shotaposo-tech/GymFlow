@@ -140,8 +140,16 @@
             cloudData = updates;
         };
 
-        window.handleMoveFocus = (el, nextId) => {
+        // handleMoveFocus を拡張
+        window.handleMoveFocus = (el, nextId, currentIdPrefix) => {
             if (focusTimer) clearTimeout(focusTimer);
+            
+            // R1またはR2が入力されたら、自動で90秒タイマーを開始
+            if (el.value.length > 0 && (currentIdPrefix === 'r1' || currentIdPrefix === 'r2')) {
+                const idx = el.id.split('-')[1];
+                window.startTimer(90, idx, true); // trueはインターバルモード
+            }
+
             if (el.value.length > 0 && nextId) {
                 const nextEl = document.getElementById(nextId);
                 if (nextEl) {
@@ -152,7 +160,7 @@
             window.autoSave();
         };
 
-        window.startTimer = (seconds, idx) => {
+        window.startTimer = (seconds, idx, isInterval = false) => {
             if (activeTimers[idx]) {
                 clearInterval(activeTimers[idx]);
                 delete activeTimers[idx];
@@ -162,21 +170,27 @@
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
             
-            // RUNNING から HOLDING に変更
-            btn.innerText = "HOLDING";
+            // 強制表示（非表示にしていた場合用）
+            if(isInterval) display.parentElement.classList.remove('hidden');
+
+            btn.innerText = isInterval ? "REST" : "HOLDING";
             btn.classList.add('opacity-50');
 
             activeTimers[idx] = setInterval(() => {
                 timeLeft--;
-                display.innerText = `00:${String(timeLeft).padStart(2, '0')}`;
+                const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+                const secs = String(timeLeft % 60).padStart(2, '0');
+                display.innerText = `${mins}:${secs}`;
                 
                 if (timeLeft <= 0) {
                     clearInterval(activeTimers[idx]);
                     delete activeTimers[idx];
-                    display.innerText = `00:00`;
-                    btn.innerText = "Finish!";
+                    display.innerText = isInterval ? "01:30" : "00:00";
+                    btn.innerText = isInterval ? "NEXT SET" : "Finish!";
                     btn.classList.remove('opacity-50');
-                    alert("タイマー終了！お疲れ様です！");
+                    if(!isInterval) alert("タイマー終了！お疲れ様です！");
+                    // インターバル終了時はバイブレーションのみ（任意）
+                    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 }
             }, 1000);
         };
@@ -209,7 +223,7 @@
                         <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-2 border-slate-300 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
                     </div>
                     ${item.type === 'strength' ? `
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 mb-2">
                             <div class="w-1/3 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center relative">
                                 <input type="number" inputmode="decimal" class="w-full bg-transparent text-lg font-black text-purple-600 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
                                 <span class="absolute right-2 text-[7px] text-slate-400 font-bold uppercase">KG</span>
@@ -218,9 +232,13 @@
                                 ${[1,2,3].map(n => `
                                     <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-50 p-2 rounded-xl text-base font-black text-slate-700 text-center border border-slate-100 outline-none" id="r${n}-${idx}" value="${prev['r'+n] || ''}" 
                                     onfocus="this.select()" 
-                                    oninput="window.handleMoveFocus(this, ${n < 3 ? `'r${n+1}-${idx}'` : 'null'})">
+                                    oninput="window.handleMoveFocus(this, ${n < 3 ? `'r${n+1}-${idx}'` : 'null'}, 'r${n}')">
                                 `).join('')}
                             </div>
+                        </div>
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4 hidden">
+                            <span class="font-mono text-lg font-black text-purple-600" id="timer-display-${idx}">01:30</span>
+                            <button id="timer-btn-${idx}" onclick="window.startTimer(90, ${idx}, true)" class="bg-gradient-gym text-white font-black px-4 py-1 rounded-lg uppercase text-[8px] shadow-md active:scale-95 transition-all">Rest</button>
                         </div>
                     ` : (item.type === 'plank' ? `
                         <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4">
