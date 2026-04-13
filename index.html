@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GymFlow - Simple</title>
+    <title>GymFlow - Restore</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -69,14 +69,14 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        let currentUser = null;
         let cloudData = {};
         let currentMenu = 'A';
         let focusTimer = null;
         let activeTimers = {};
 
-        // ドキュメントIDを画像の「my_personal_log」に固定
-        const DATA_DOC_ID = "my_personal_log";
+        // 【最重要】画像に基づいたパス設定
+        const COLLECTION_NAME = "my_personal_log"; 
+        const DOCUMENT_ID = "my_personal_log";
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -102,7 +102,6 @@
         onAuthStateChanged(auth, async (user) => {
             document.getElementById('loading-overlay').classList.add('hidden');
             if (user) {
-                currentUser = user;
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
                 await loadData();
@@ -113,11 +112,21 @@
         });
 
         async function loadData() {
-            const docSnap = await getDoc(doc(db, "users", DATA_DOC_ID));
-            if (docSnap.exists()) {
-                cloudData = docSnap.data();
+            try {
+                // 指定したパス（my_personal_log/my_personal_log）からデータを取得
+                const docRef = doc(db, COLLECTION_NAME, DOCUMENT_ID);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    cloudData = docSnap.data();
+                    console.log("Data loaded:", cloudData);
+                } else {
+                    console.log("No data found at this path.");
+                }
+                render();
+            } catch (error) {
+                console.error("Error loading data:", error);
             }
-            render();
         }
 
         window.autoSave = async () => {
@@ -127,8 +136,8 @@
             currentData.forEach((item, idx) => {
                 const c = document.getElementById(`check-${idx}`);
                 if (!c) return;
-                // キーは画像に合わせて種目名に固定（A_などの接頭辞なし）
-                const storageKey = item.name;
+                
+                const storageKey = item.name; // 画像のキー形式に合わせる
                 
                 if (item.type === 'strength') {
                     updates[storageKey] = {
@@ -143,10 +152,13 @@
                 }
             });
 
-            // merge: true を使うことで、既存のデータを消さずに更新
-            await setDoc(doc(db, "users", DATA_DOC_ID), updates, { merge: true });
-            // ローカルデータも更新
-            Object.assign(cloudData, updates);
+            try {
+                const docRef = doc(db, COLLECTION_NAME, DOCUMENT_ID);
+                await setDoc(docRef, updates, { merge: true });
+                Object.assign(cloudData, updates);
+            } catch (error) {
+                console.error("Error saving data:", error);
+            }
         };
 
         window.handleMoveFocus = (el, nextId) => {
@@ -161,16 +173,11 @@
             window.autoSave();
         };
 
-        window.startTimer = (seconds, idx, isInterval = false) => {
-            if (activeTimers[idx]) {
-                clearInterval(activeTimers[idx]);
-                delete activeTimers[idx];
-            }
+        window.startTimer = (seconds, idx) => {
+            if (activeTimers[idx]) { clearInterval(activeTimers[idx]); delete activeTimers[idx]; }
             let timeLeft = seconds;
             const display = document.getElementById(`timer-display-${idx}`);
             const btn = document.getElementById(`timer-btn-${idx}`);
-            if(isInterval) display.parentElement.classList.remove('hidden');
-            btn.innerText = isInterval ? "REST" : "HOLDING";
             btn.classList.add('opacity-50');
             activeTimers[idx] = setInterval(() => {
                 timeLeft--;
@@ -180,8 +187,7 @@
                 if (timeLeft <= 0) {
                     clearInterval(activeTimers[idx]);
                     delete activeTimers[idx];
-                    display.innerText = isInterval ? "01:30" : "00:00";
-                    btn.innerText = isInterval ? "NEXT SET" : "Finish!";
+                    display.innerText = "00:00";
                     btn.classList.remove('opacity-50');
                     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 }
@@ -189,7 +195,7 @@
         };
 
         window.resetChecks = async () => {
-            if (!confirm("現在のメニューのチェックを外しますか？")) return;
+            if (!confirm("チェックを外しますか？")) return;
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = {};
             data.forEach(item => {
@@ -197,7 +203,7 @@
                     updates[item.name] = { ...cloudData[item.name], done: false };
                 }
             });
-            await setDoc(doc(db, "users", DATA_DOC_ID), updates, { merge: true });
+            await setDoc(doc(db, COLLECTION_NAME, DOCUMENT_ID), updates, { merge: true });
             await loadData();
         };
 
