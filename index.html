@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GymFlow - Restore</title>
+    <title>GymFlow - Data Recovered</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -74,9 +74,8 @@
         let focusTimer = null;
         let activeTimers = {};
 
-        // 【最重要】画像に基づいたパス設定
-        const COLLECTION_NAME = "my_personal_log"; 
-        const DOCUMENT_ID = "my_personal_log";
+        // 【最重要】特定された正しいドキュメントパス
+        const TARGET_UID = "v6EmxcVq7ZUntmZ4ldWlOlwybR93";
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -113,20 +112,13 @@
 
         async function loadData() {
             try {
-                // 指定したパス（my_personal_log/my_personal_log）からデータを取得
-                const docRef = doc(db, COLLECTION_NAME, DOCUMENT_ID);
+                const docRef = doc(db, "users", TARGET_UID);
                 const docSnap = await getDoc(docRef);
-                
                 if (docSnap.exists()) {
                     cloudData = docSnap.data();
-                    console.log("Data loaded:", cloudData);
-                } else {
-                    console.log("No data found at this path.");
                 }
                 render();
-            } catch (error) {
-                console.error("Error loading data:", error);
-            }
+            } catch (e) { console.error("Load Error:", e); }
         }
 
         window.autoSave = async () => {
@@ -137,7 +129,8 @@
                 const c = document.getElementById(`check-${idx}`);
                 if (!c) return;
                 
-                const storageKey = item.name; // 画像のキー形式に合わせる
+                // 画像に合わせて種目名をキーにする
+                const storageKey = item.name;
                 
                 if (item.type === 'strength') {
                     updates[storageKey] = {
@@ -147,18 +140,17 @@
                         r3: document.getElementById(`r3-${idx}`).value,
                         done: c.checked
                     };
-                } else {
+                } else if (item.type === 'cardio' || item.type === 'plank') {
                     updates[storageKey] = { done: c.checked };
                 }
             });
 
             try {
-                const docRef = doc(db, COLLECTION_NAME, DOCUMENT_ID);
+                const docRef = doc(db, "users", TARGET_UID);
+                // 他のメニューのデータを消さないよう merge: true を使用
                 await setDoc(docRef, updates, { merge: true });
                 Object.assign(cloudData, updates);
-            } catch (error) {
-                console.error("Error saving data:", error);
-            }
+            } catch (e) { console.error("Save Error:", e); }
         };
 
         window.handleMoveFocus = (el, nextId) => {
@@ -195,7 +187,7 @@
         };
 
         window.resetChecks = async () => {
-            if (!confirm("チェックを外しますか？")) return;
+            if (!confirm("本日のチェックをリセットしますか？")) return;
             const data = currentMenu === 'A' ? menuA : menuB;
             const updates = {};
             data.forEach(item => {
@@ -203,7 +195,8 @@
                     updates[item.name] = { ...cloudData[item.name], done: false };
                 }
             });
-            await setDoc(doc(db, COLLECTION_NAME, DOCUMENT_ID), updates, { merge: true });
+            const docRef = doc(db, "users", TARGET_UID);
+            await setDoc(docRef, updates, { merge: true });
             await loadData();
         };
 
