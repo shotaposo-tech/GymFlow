@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GymFlow</title>
+    <title>GymFlow - Simple</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { -webkit-touch-callout: none; -webkit-user-select: none; background: #f1f5f9; color: #1e293b; overflow-x: hidden; font-family: sans-serif; }
         .hidden { display: none !important; }
@@ -45,17 +44,10 @@
             <div class="flex justify-around items-center font-bold h-10">
                 <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]">Menu A</button>
                 <button id="tabB" class="flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]">Menu B</button>
-                <button id="tabLog" class="flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]">Log</button>
                 <button onclick="window.resetChecks()" class="ml-4 bg-slate-100 text-slate-500 text-[8px] px-3 py-1 rounded-full border border-slate-200 active:bg-red-50 transition-all">Reset</button>
             </div>
         </header>
         <main class="p-4 space-y-3" id="menu-content"></main>
-        <div id="log-content" class="hidden p-4">
-            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-slate-800 font-black text-sm mb-4 uppercase italic">Total Volume History (kg)</h3>
-                <canvas id="volumeChart"></canvas>
-            </div>
-        </div>
     </div>
 
     <script type="module">
@@ -82,7 +74,9 @@
         let currentMenu = 'A';
         let focusTimer = null;
         let activeTimers = {};
-        let myChart = null;
+
+        // ドキュメントIDを画像の「my_personal_log」に固定
+        const DATA_DOC_ID = "my_personal_log";
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -119,23 +113,23 @@
         });
 
         async function loadData() {
-            if (!currentUser) return;
-            const docSnap = await getDoc(doc(db, "users", currentUser.uid));
-            if (docSnap.exists()) cloudData = docSnap.data();
+            const docSnap = await getDoc(doc(db, "users", DATA_DOC_ID));
+            if (docSnap.exists()) {
+                cloudData = docSnap.data();
+            }
             render();
         }
 
         window.autoSave = async () => {
-            if (!currentUser) return;
-            const updates = { ...cloudData };
-            const menus = [...menuA, ...menuB];
-            
-            // 現在のメニューの入力を反映
+            const updates = {};
             const currentData = currentMenu === 'A' ? menuA : menuB;
+            
             currentData.forEach((item, idx) => {
                 const c = document.getElementById(`check-${idx}`);
                 if (!c) return;
-                const storageKey = `${currentMenu}_${item.name}`;
+                // キーは画像に合わせて種目名に固定（A_などの接頭辞なし）
+                const storageKey = item.name;
+                
                 if (item.type === 'strength') {
                     updates[storageKey] = {
                         weight: document.getElementById(`weight-${idx}`).value,
@@ -149,33 +143,14 @@
                 }
             });
 
-            // 合計ボリューム計算 (今日の日付で保存)
-            const today = new Date().toISOString().split('T')[0];
-            let dailyVolume = 0;
-            
-            // すべての保存済みデータから「チェックが入っている種目」のボリュームを合算
-            Object.keys(updates).forEach(key => {
-                const val = updates[key];
-                if (val && val.done && val.weight) {
-                    const w = parseFloat(val.weight) || 0;
-                    const r = (parseInt(val.r1) || 0) + (parseInt(val.r2) || 0) + (parseInt(val.r3) || 0);
-                    dailyVolume += (w * r);
-                }
-            });
-
-            if (!updates.history) updates.history = {};
-            updates.history[today] = dailyVolume;
-
-            await setDoc(doc(db, "users", currentUser.uid), updates);
-            cloudData = updates;
+            // merge: true を使うことで、既存のデータを消さずに更新
+            await setDoc(doc(db, "users", DATA_DOC_ID), updates, { merge: true });
+            // ローカルデータも更新
+            Object.assign(cloudData, updates);
         };
 
-        window.handleMoveFocus = (el, nextId, currentIdPrefix) => {
+        window.handleMoveFocus = (el, nextId) => {
             if (focusTimer) clearTimeout(focusTimer);
-            if (el.value.length > 0 && (currentIdPrefix === 'r1' || currentIdPrefix === 'r2')) {
-                const idx = el.id.split('-')[1];
-                window.startTimer(90, idx, true);
-            }
             if (el.value.length > 0 && nextId) {
                 const nextEl = document.getElementById(nextId);
                 if (nextEl) {
@@ -214,31 +189,24 @@
         };
 
         window.resetChecks = async () => {
-            if (!confirm("現在のメニューをリセットしますか？")) return;
+            if (!confirm("現在のメニューのチェックを外しますか？")) return;
             const data = currentMenu === 'A' ? menuA : menuB;
+            const updates = {};
             data.forEach(item => {
-                const storageKey = `${currentMenu}_${item.name}`;
-                if(cloudData[storageKey]) cloudData[storageKey].done = false;
+                if(cloudData[item.name]) {
+                    updates[item.name] = { ...cloudData[item.name], done: false };
+                }
             });
-            await setDoc(doc(db, "users", currentUser.uid), cloudData);
-            render();
+            await setDoc(doc(db, "users", DATA_DOC_ID), updates, { merge: true });
+            await loadData();
         };
 
         function render() {
             const container = document.getElementById('menu-content');
-            if (currentMenu === 'LOG') {
-                container.classList.add('hidden');
-                document.getElementById('log-content').classList.remove('hidden');
-                renderChart();
-                return;
-            }
-            container.classList.remove('hidden');
-            document.getElementById('log-content').classList.add('hidden');
-
             const data = currentMenu === 'A' ? menuA : menuB;
+            
             container.innerHTML = data.map((item, idx) => {
-                const storageKey = `${currentMenu}_${item.name}`;
-                const prev = cloudData[storageKey] || {};
+                const prev = cloudData[item.name] || {};
                 return `
                 <section class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm ${prev.done ? 'done' : ''}" id="item-${idx}">
                     <div class="flex justify-between items-center mb-3">
@@ -258,13 +226,9 @@
                                 ${[1,2,3].map(n => `
                                     <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-50 p-2 rounded-xl text-base font-black text-slate-700 text-center border border-slate-100 outline-none" id="r${n}-${idx}" value="${prev['r'+n] || ''}" 
                                     onfocus="this.select()" 
-                                    oninput="window.handleMoveFocus(this, ${n < 3 ? `'r${n+1}-${idx}'` : 'null'}, 'r${n}')">
+                                    oninput="window.handleMoveFocus(this, ${n < 3 ? `'r${n+1}-${idx}'` : 'null'})">
                                 `).join('')}
                             </div>
-                        </div>
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4 hidden">
-                            <span class="font-mono text-lg font-black text-purple-600" id="timer-display-${idx}">01:30</span>
-                            <button id="timer-btn-${idx}" onclick="window.startTimer(90, ${idx}, true)" class="bg-gradient-gym text-white font-black px-4 py-1 rounded-lg uppercase text-[8px] shadow-md active:scale-95 transition-all">Rest</button>
                         </div>
                     ` : (item.type === 'plank' ? `
                         <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4">
@@ -276,52 +240,15 @@
             `}).join('');
         }
 
-        function renderChart() {
-            const ctx = document.getElementById('volumeChart').getContext('2d');
-            const history = cloudData.history || {};
-            const labels = Object.keys(history).sort();
-            const data = labels.map(date => history[date]);
-
-            if (myChart) myChart.destroy();
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels.map(d => d.split('-').slice(1).join('/')), // MM/DD形式
-                    datasets: [{
-                        label: 'Volume (kg)',
-                        data: data,
-                        borderColor: '#d946ef',
-                        backgroundColor: 'rgba(217, 70, 239, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointBackgroundColor: '#f59e0b',
-                        pointBorderColor: '#fff',
-                        pointRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: { beginAtZero: true, grid: { display: false } },
-                        x: { grid: { display: false } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
-            document.getElementById('tabLog').className = type === 'LOG' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]';
             render();
         };
 
         document.getElementById('tabA').onclick = () => window.switchMenu('A');
         document.getElementById('tabB').onclick = () => window.switchMenu('B');
-        document.getElementById('tabLog').onclick = () => window.switchMenu('LOG');
     </script>
 </body>
 </html>
