@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GymFlow - Permanent Storage</title>
+    <title>GymFlow</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,15 +15,14 @@
         .text-gradient-gym { background: linear-gradient(135deg, #f59e0b 0%, #d946ef 50%, #7c3aed 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .active-tab { color: #d946ef; border-bottom: 3px solid #d946ef; }
         .logo-font { letter-spacing: 0.15em; font-weight: 900; font-style: italic; }
-        input[type="number"] { -moz-appearance: textfield; border: none; outline: none; background: transparent; width: 100%; text-align: center; font-weight: 900; }
+        input[type="number"] { -moz-appearance: textfield; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
 
-    <div id="loading-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center">
-        <div class="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <div class="text-orange-500 font-bold text-xs tracking-widest uppercase">Syncing Data...</div>
+    <div id="loading-overlay" class="fixed inset-0 z-50 bg-white flex items-center justify-center">
+        <div class="text-orange-500 font-bold animate-pulse text-sm tracking-widest uppercase">GymFlow Loading...</div>
     </div>
 
     <div id="login-overlay" class="hidden fixed inset-0 z-40 bg-white flex flex-col items-center justify-center p-6">
@@ -31,7 +30,7 @@
             <span class="text-white text-4xl italic font-black -rotate-12">GF</span>
         </div>
         <h1 class="text-5xl font-black mb-10 text-slate-800 italic tracking-tighter text-center leading-none">GYM<br>FLOW</h1>
-        <button id="login-btn" class="bg-slate-900 text-white font-bold py-4 px-10 rounded-2xl flex items-center gap-3 shadow-lg active:scale-95 transition-all">
+        <button id="login-btn" class="bg-slate-900 text-white font-bold py-4 px-10 rounded-2xl flex items-center gap-3 active:scale-95 transition-all shadow-lg">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
             Googleでログイン
         </button>
@@ -43,9 +42,9 @@
                 <h1 class="logo-font text-gradient-gym text-2xl uppercase">GymFlow</h1>
             </div>
             <div class="flex justify-around items-center font-bold h-10">
-                <button id="tabA" class="flex-1 h-full active-tab uppercase tracking-widest text-[10px]">Menu A</button>
-                <button id="tabB" class="flex-1 h-full text-slate-400 uppercase tracking-widest text-[10px]">Menu B</button>
-                <button onclick="window.resetChecks()" class="ml-4 bg-slate-100 text-slate-400 text-[8px] px-3 py-1 rounded-full border border-slate-200 active:bg-red-100">Reset Check</button>
+                <button id="tabA" class="flex-1 h-full active-tab transition-all uppercase tracking-widest text-[10px]">Menu A</button>
+                <button id="tabB" class="flex-1 h-full text-slate-400 transition-all uppercase tracking-widest text-[10px]">Menu B</button>
+                <button onclick="window.resetChecks()" class="ml-4 bg-slate-100 text-slate-500 text-[8px] px-3 py-1 rounded-full border border-slate-200 active:bg-red-50 transition-all">Reset</button>
             </div>
         </header>
         <main class="p-4 space-y-3" id="menu-content"></main>
@@ -54,7 +53,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getAuth, signInWithPopup, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEq0qGFrNvQeBDRffBMXb-m5xa3bPYlMg",
@@ -70,14 +69,11 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        // 【新機能】オフライン保存を有効化
-        enableIndexedDbPersistence(db).catch((err) => {
-            console.error("Persistence failed", err.code);
-        });
-
+        let currentUser = null;
         let cloudData = {};
         let currentMenu = 'A';
-        let userUID = null;
+        let focusTimer = null;
+        let activeTimers = {};
 
         const menuA = [
             { name: "CHEST PRESS", settings: "Seat:6 / Arm:1", type: "strength" },
@@ -97,109 +93,167 @@
             try {
                 await setPersistence(auth, browserLocalPersistence);
                 await signInWithPopup(auth, provider);
-            } catch (e) { alert("ログインエラー"); }
+            } catch (e) { alert("Login Error"); }
         };
 
         onAuthStateChanged(auth, async (user) => {
+            document.getElementById('loading-overlay').classList.add('hidden');
             if (user) {
-                userUID = user.uid;
+                currentUser = user;
                 document.getElementById('login-overlay').classList.add('hidden');
-                // データを読み込み終わるまで Loading を表示し続ける
-                await loadData();
                 document.getElementById('app-content').classList.remove('hidden');
-                document.getElementById('loading-overlay').classList.add('hidden');
+                await loadData();
             } else {
-                document.getElementById('loading-overlay').classList.add('hidden');
                 document.getElementById('login-overlay').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
             }
         });
 
         async function loadData() {
-            if (!userUID) return;
-            try {
-                const docSnap = await getDoc(doc(db, "users", userUID));
-                if (docSnap.exists()) {
-                    cloudData = docSnap.data();
-                }
-                render();
-            } catch (e) { console.error("Load Error", e); }
+            if (!currentUser) return;
+            const docSnap = await getDoc(doc(db, "users", currentUser.uid));
+            if (docSnap.exists()) cloudData = docSnap.data();
+            render();
         }
 
-        window.fastSave = async (itemName, field, value) => {
-            if (!userUID) return;
-            
-            // 手元のデータを即更新（描画崩れ防止）
-            if (!cloudData[itemName]) cloudData[itemName] = {};
-            const finalVal = (field === 'done') ? value : String(value);
-            cloudData[itemName][field] = finalVal;
+        window.autoSave = async () => {
+            if (!currentUser) return;
+            const updates = { ...cloudData };
+            const data = currentMenu === 'A' ? menuA : menuB;
+            data.forEach((item, idx) => {
+                const c = document.getElementById(`check-${idx}`);
+                if (!c) return;
+                const storageKey = `${currentMenu}_${item.name}`;
+                if (item.type === 'strength') {
+                    updates[storageKey] = {
+                        weight: document.getElementById(`weight-${idx}`).value,
+                        r1: document.getElementById(`r1-${idx}`).value,
+                        r2: document.getElementById(`r2-${idx}`).value,
+                        r3: document.getElementById(`r3-${idx}`).value,
+                        done: c.checked
+                    };
+                } else {
+                    updates[storageKey] = { done: c.checked };
+                }
+            });
+            await setDoc(doc(db, "users", currentUser.uid), updates);
+            cloudData = updates;
+        };
 
-            // 即座にクラウドへ保存（既存データは merge される）
-            try {
-                await setDoc(doc(db, "users", userUID), {
-                    [itemName]: cloudData[itemName]
-                }, { merge: true });
-            } catch (e) { console.error("Save failed", e); }
+        // handleMoveFocus を拡張
+        window.handleMoveFocus = (el, nextId, currentIdPrefix) => {
+            if (focusTimer) clearTimeout(focusTimer);
+            
+            // R1またはR2が入力されたら、自動で90秒タイマーを開始
+            if (el.value.length > 0 && (currentIdPrefix === 'r1' || currentIdPrefix === 'r2')) {
+                const idx = el.id.split('-')[1];
+                window.startTimer(90, idx, true); // trueはインターバルモード
+            }
+
+            if (el.value.length > 0 && nextId) {
+                const nextEl = document.getElementById(nextId);
+                if (nextEl) {
+                    const delay = el.value.length >= 2 ? 0 : 800; 
+                    focusTimer = setTimeout(() => { nextEl.focus(); }, delay);
+                }
+            }
+            window.autoSave();
+        };
+
+        window.startTimer = (seconds, idx, isInterval = false) => {
+            if (activeTimers[idx]) {
+                clearInterval(activeTimers[idx]);
+                delete activeTimers[idx];
+            }
+            
+            let timeLeft = seconds;
+            const display = document.getElementById(`timer-display-${idx}`);
+            const btn = document.getElementById(`timer-btn-${idx}`);
+            
+            // 強制表示（非表示にしていた場合用）
+            if(isInterval) display.parentElement.classList.remove('hidden');
+
+            btn.innerText = isInterval ? "REST" : "HOLDING";
+            btn.classList.add('opacity-50');
+
+            activeTimers[idx] = setInterval(() => {
+                timeLeft--;
+                const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+                const secs = String(timeLeft % 60).padStart(2, '0');
+                display.innerText = `${mins}:${secs}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(activeTimers[idx]);
+                    delete activeTimers[idx];
+                    display.innerText = isInterval ? "01:30" : "00:00";
+                    btn.innerText = isInterval ? "NEXT SET" : "Finish!";
+                    btn.classList.remove('opacity-50');
+                    if(!isInterval) alert("タイマー終了！お疲れ様です！");
+                    // インターバル終了時はバイブレーションのみ（任意）
+                    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                }
+            }, 1000);
         };
 
         window.resetChecks = async () => {
-            if (!confirm("チェックのみ外します。数値は残ります。")) return;
+            if (!confirm("現在のメニューをリセットしますか？")) return;
             const data = currentMenu === 'A' ? menuA : menuB;
-            for (let item of data) {
-                if (cloudData[item.name]) {
-                    cloudData[item.name].done = false;
-                    await window.fastSave(item.name, 'done', false);
-                }
-            }
+            data.forEach(item => {
+                const storageKey = `${currentMenu}_${item.name}`;
+                if(cloudData[storageKey]) cloudData[storageKey].done = false;
+            });
+            await setDoc(doc(db, "users", currentUser.uid), cloudData);
             render();
         };
 
         function render() {
             const container = document.getElementById('menu-content');
             const data = currentMenu === 'A' ? menuA : menuB;
-            
             container.innerHTML = data.map((item, idx) => {
-                const prev = cloudData[item.name] || {};
+                const storageKey = `${currentMenu}_${item.name}`;
+                const prev = cloudData[storageKey] || cloudData[item.name] || {};
+                
                 return `
                 <section class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm ${prev.done ? 'done' : ''}" id="item-${idx}">
                     <div class="flex justify-between items-center mb-3">
                         <div class="flex-1">
-                            <h2 class="font-black text-slate-800 text-base uppercase">${item.name}</h2>
-                            <p class="text-orange-500 text-[8px] font-bold uppercase">${item.settings}</p>
+                            <h2 class="font-black text-slate-800 text-base tracking-tight uppercase">${item.name}</h2>
+                            <p class="text-orange-500 text-[8px] font-bold uppercase tracking-widest">${item.settings}</p>
                         </div>
-                        <input type="checkbox" class="w-8 h-8 rounded-full border-2 border-slate-300" 
-                        ${prev.done ? 'checked' : ''} 
-                        onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.fastSave('${item.name}', 'done', this.checked)">
+                        <input type="checkbox" id="check-${idx}" class="w-7 h-7 rounded-full border-2 border-slate-300 transition-all" ${prev.done ? 'checked' : ''} onchange="document.getElementById('item-${idx}').classList.toggle('done', this.checked); window.autoSave();">
                     </div>
                     ${item.type === 'strength' ? `
-                        <div class="flex gap-2">
-                            <div class="w-1/3 bg-slate-50 p-2 rounded-xl border border-slate-100 relative">
-                                <input type="number" inputmode="decimal" class="text-purple-600 text-lg" 
-                                value="${prev.weight || ''}" placeholder="0"
-                                oninput="window.fastSave('${item.name}', 'weight', this.value)">
-                                <span class="absolute right-1 bottom-1 text-[6px] text-slate-400 font-bold uppercase">KG</span>
+                        <div class="flex gap-2 mb-2">
+                            <div class="w-1/3 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center relative">
+                                <input type="number" inputmode="decimal" class="w-full bg-transparent text-lg font-black text-purple-600 text-center outline-none" id="weight-${idx}" value="${prev.weight || ''}" onfocus="this.select()" onblur="window.autoSave()">
+                                <span class="absolute right-2 text-[7px] text-slate-400 font-bold uppercase">KG</span>
                             </div>
                             <div class="w-2/3 flex gap-1">
                                 ${[1,2,3].map(n => `
-                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-slate-700" 
-                                    value="${prev['r'+n] || ''}" 
-                                    oninput="window.fastSave('${item.name}', 'r${n}', this.value)">
+                                    <input type="number" inputmode="numeric" placeholder="R${n}" class="w-full bg-slate-50 p-2 rounded-xl text-base font-black text-slate-700 text-center border border-slate-100 outline-none" id="r${n}-${idx}" value="${prev['r'+n] || ''}" 
+                                    onfocus="this.select()" 
+                                    oninput="window.handleMoveFocus(this, ${n < 3 ? `'r${n+1}-${idx}'` : 'null'}, 'r${n}')">
                                 `).join('')}
                             </div>
                         </div>
-                    ` : `
-                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            Ready
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4 hidden">
+                            <span class="font-mono text-lg font-black text-purple-600" id="timer-display-${idx}">01:30</span>
+                            <button id="timer-btn-${idx}" onclick="window.startTimer(90, ${idx}, true)" class="bg-gradient-gym text-white font-black px-4 py-1 rounded-lg uppercase text-[8px] shadow-md active:scale-95 transition-all">Rest</button>
                         </div>
-                    `}
+                    ` : (item.type === 'plank' ? `
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 flex justify-between items-center px-4">
+                            <span class="font-mono text-xl font-black text-purple-600" id="timer-display-${idx}">00:${item.duration}</span>
+                            <button id="timer-btn-${idx}" onclick="window.startTimer(${item.duration}, ${idx})" class="bg-gradient-gym text-white font-black px-5 py-1.5 rounded-lg uppercase text-[9px] shadow-md active:scale-95 transition-all">Start</button>
+                        </div>
+                    ` : '')}
                 </section>
-                `
-            }).join('');
+            `}).join('');
         }
 
         window.switchMenu = (type) => {
             currentMenu = type;
-            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-400 uppercase tracking-widest text-[10px]';
-            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab uppercase tracking-widest text-[10px]' : 'flex-1 h-full text-slate-400 uppercase tracking-widest text-[10px]';
+            document.getElementById('tabA').className = type === 'A' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
+            document.getElementById('tabB').className = type === 'B' ? 'flex-1 h-full active-tab' : 'flex-1 h-full text-slate-400';
             render();
         };
 
